@@ -136,8 +136,11 @@ Flow {
                     }
                 }
 
-                // 2. Hover styling
-                if (indicatorsFlow.taskItem.containsMouse || indicatorsFlow.taskItem.isHovered) {
+                // 2. Hover styling. In a group only one segment grows: the focused window's,
+                // or the first one when none of the group's windows is focused
+                const hoverTarget = indicatorsFlow.taskCount <= 1 || isActiveWindow
+                    || (index === 0 && indicatorsFlow.getActiveChildIndex() === -1);
+                if (hoverTarget && (indicatorsFlow.taskItem.containsMouse || indicatorsFlow.taskItem.isHovered)) {
                     if (indicatorsFlow.config.indicatorResize) {
                         if (indicatorsFlow.config.indicatorHoverSeparate) {
                             segLength = indicatorsFlow.config.indicatorHoverLength;
