@@ -748,6 +748,7 @@ Item {
                                     readonly property real parentWidth: mockTask.width
                                     readonly property real parentHeight: mockTask.height
                                     readonly property bool parentIsMinimized: mockTask.isMinimized
+                                    readonly property bool parentIsActive: mockTask.isActive
                                     readonly property color parentIndicatorColor: mockTask.indicatorColor
 
                                     Repeater {
@@ -809,6 +810,10 @@ Item {
                                                 if (indicatorArea.parentCfg.cfg_indicatorDesaturate && indicatorArea.parentIsMinimized) {
                                                     let c = Qt.color(baseColor)
                                                     return Qt.hsla(c.hslHue, 0.0, c.hslLightness, c.a * 0.5)
+                                                }
+                                                if (indicatorArea.parentIsActive && indicatorArea.parentCfg.cfg_indicatorActiveOpacity < 100) {
+                                                    let c = Qt.color(baseColor)
+                                                    return Qt.rgba(c.r, c.g, c.b, c.a * indicatorArea.parentCfg.cfg_indicatorActiveOpacity / 100.0)
                                                 }
                                                 return baseColor
                                             }

@@ -198,6 +198,11 @@ Flow {
                     colorCalc = Qt.rgba(colorCalc.r, colorCalc.g, colorCalc.b, colorCalc.a * inactiveOpacity);
                 }
 
+                // 3) Opacity of the focused window's indicator (e.g. to soften a black indicator)
+                if (isActiveWindow && indicatorsFlow.config.indicatorActiveOpacity < 100) {
+                    colorCalc = Qt.rgba(colorCalc.r, colorCalc.g, colorCalc.b, colorCalc.a * indicatorsFlow.config.indicatorActiveOpacity / 100.0);
+                }
+
                 return {length: indicatorComputedSize, thickness: segSize, colorCalc: colorCalc}
             }
 

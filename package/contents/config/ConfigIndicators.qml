@@ -359,6 +359,24 @@ ConfigPage {
             visible: indicatorsEnabled.checked
             spacing: indicatorsPage.smallSpacing
             Label {
+                text: Wrappers.i18n("Focused indicator opacity:")
+            }
+            SpinBox {
+                from: 10
+                to: 100
+                stepSize: 5
+                value: indicatorsPage.cfg_indicatorActiveOpacity
+                onValueModified: indicatorsPage.cfg_indicatorActiveOpacity = value
+            }
+            Label {
+                text: "%"
+            }
+        }
+
+        RowLayout {
+            visible: indicatorsEnabled.checked
+            spacing: indicatorsPage.smallSpacing
+            Label {
                 text: Wrappers.i18n("Roundness:")
             }
             SpinBox {

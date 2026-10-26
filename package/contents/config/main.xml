@@ -359,6 +359,10 @@
       <label>Opacity of inactive window indicators (%)</label>
       <default>40</default>
     </entry>
+    <entry name="indicatorActiveOpacity" type="Int">
+      <label>Opacity of the focused window's indicator (%)</label>
+      <default>100</default>
+    </entry>
     <entry name="indicatorAlignment" type="Int">
       <label>Cross-axis alignment of indicator segments (0=edge, 1=center, 2=inner)</label>
       <default>0</default>

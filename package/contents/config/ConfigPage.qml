@@ -222,6 +222,8 @@ Kirigami.Page {
     property bool cfg_indicatorDimInactiveDefault: false
     property int cfg_indicatorInactiveOpacity: 40
     property int cfg_indicatorInactiveOpacityDefault: 40
+    property int cfg_indicatorActiveOpacity: 100
+    property int cfg_indicatorActiveOpacityDefault: 100
     property int cfg_indicatorAlignment: 0
     property int cfg_indicatorAlignmentDefault: 0
     property bool cfg_indicatorDominantColor: false
