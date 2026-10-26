@@ -45,7 +45,8 @@ Item {
         // Only delivered when the helper exits; a running helper never reports here
         onNewData: (sourceName, data) => {
             const exitCode = data["exit code"];
-            if (exitCode) {
+            // Being stopped together with Plasma also gives a non-zero exit code, but no stderr
+            if (exitCode && String(data.stderr || "").trim()) {
                 const lines = String(data.stderr || "").trim().split("\n");
                 root.helperError = lines[lines.length - 1] || ("exit code " + exitCode);
                 console.warn("FancyTasksNG: desktop actions helper failed:", data.stderr);

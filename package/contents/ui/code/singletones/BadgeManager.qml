@@ -42,7 +42,8 @@ Item {
         }
         
         onNewData: (sourceName, data) => {
-            if (data["exit code"])
+            // Being stopped together with Plasma also gives a non-zero exit code, but no stderr
+            if (data["exit code"] && String(data.stderr || "").trim())
                 console.warn("FancyTasksNG: badge bridge failed:", data.stderr);
             disconnectSource(sourceName);
         }
