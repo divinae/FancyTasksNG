@@ -228,6 +228,10 @@ Kirigami.Page {
     property bool cfg_indicatorDominantColorDefault: false
     property bool cfg_indicatorAccentColor: false
     property bool cfg_indicatorAccentColorDefault: true
+    property bool cfg_indicatorTextColor: false
+    property bool cfg_indicatorTextColorDefault: false
+    property bool cfg_indicatorOutline: false
+    property bool cfg_indicatorOutlineDefault: false
     property string cfg_indicatorCustomColor: ""
     property string cfg_indicatorCustomColorDefault: "white"
     property bool cfg_indicatorOverride: false

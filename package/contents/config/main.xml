@@ -371,6 +371,14 @@
       <label>Make the icon the plasma accent color.</label>
       <default>true</default>
     </entry>
+    <entry name="indicatorTextColor" type="Bool">
+      <label>Use the theme's text color for indicators (dark on light themes, light on dark themes).</label>
+      <default>false</default>
+    </entry>
+    <entry name="indicatorOutline" type="Bool">
+      <label>Draw a thin contrasting outline around indicators.</label>
+      <default>false</default>
+    </entry>
     <entry name="indicatorCustomColor" type="String">
       <label>Set the indicator to a custom color.</label>
       <default>white</default>

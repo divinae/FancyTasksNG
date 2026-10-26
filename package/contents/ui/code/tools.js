@@ -268,9 +268,11 @@ function taskPrefixHovered(prefix, location, config) {
  * @param {color} customColor - indicatorCustomColor config value
  * @returns {color} The resolved base color
  */
-function resolveIndicatorBaseColor(useAccent, useDominant, accentColor, dominantColor, customColor) {
+function resolveIndicatorBaseColor(useAccent, useTextColor, useDominant, accentColor, textColor, dominantColor, customColor) {
     if (useAccent) {
         return accentColor;
+    } else if (useTextColor) {
+        return textColor;
     } else if (useDominant) {
         return dominantColor;
     }

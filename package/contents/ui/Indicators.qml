@@ -112,8 +112,10 @@ Flow {
 
                 colorEval = TaskTools.resolveIndicatorBaseColor(
                     indicatorsFlow.config.indicatorAccentColor,
+                    indicatorsFlow.config.indicatorTextColor,
                     indicatorsFlow.config.indicatorDominantColor,
                     Kirigami.Theme.highlightColor,
+                    Kirigami.Theme.textColor,
                     decoColor,
                     indicatorsFlow.config.indicatorCustomColor
                 );
@@ -245,6 +247,10 @@ Flow {
 
                 color: (indicatorsFlow.config.indicatorShowPlus && (segmentWrapper.index === (segmentWrapper.maxStates - 1)) && (indicatorsFlow.taskCount > segmentWrapper.maxStates)) ? "transparent" : segmentWrapper.computedVar.colorCalc
                 radius: Math.min(width, height) * (indicatorsFlow.config.indicatorRadius / 200)
+                // Optional outline in the opposite of the text color, so e.g. a black indicator
+                // stays visible over a dark icon or wallpaper
+                border.width: indicatorsFlow.config.indicatorOutline && !plusIcon.visible ? 1 : 0
+                border.color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.8)
 
                 Item {
                     id: plusIcon

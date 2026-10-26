@@ -798,8 +798,10 @@ Item {
 
                                                 let baseColor = TaskTools.resolveIndicatorBaseColor(
                                                     indicatorArea.parentCfg.cfg_indicatorAccentColor,
+                                                    indicatorArea.parentCfg.cfg_indicatorTextColor,
                                                     indicatorArea.parentCfg.cfg_indicatorDominantColor,
                                                     Kirigami.Theme.highlightColor,
+                                                    Kirigami.Theme.textColor,
                                                     indicatorArea.parentIndicatorColor,
                                                     indicatorArea.parentCfg.cfg_indicatorCustomColor
                                                 );
@@ -812,6 +814,8 @@ Item {
                                             }
 
                                             radius: Math.min(width, height) * ((indicatorArea.parentCfgReady ? indicatorArea.parentCfg.cfg_indicatorRadius : 0) / 200)
+                                            border.width: indicatorArea.parentCfgReady && indicatorArea.parentCfg.cfg_indicatorOutline ? 1 : 0
+                                            border.color: Qt.rgba(Kirigami.Theme.backgroundColor.r, Kirigami.Theme.backgroundColor.g, Kirigami.Theme.backgroundColor.b, 0.8)
                                         }
                                     }
                                 }

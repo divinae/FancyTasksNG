@@ -434,6 +434,14 @@ ConfigPage {
     
         CheckBox {
             visible: indicatorsEnabled.checked && !indicatorAccentColor.checked
+            id: indicatorTextColor
+            text: Wrappers.i18n("Use theme text color (dark on light themes, light on dark themes)")
+            checked: indicatorsPage.cfg_indicatorTextColor
+            onToggled: indicatorsPage.cfg_indicatorTextColor = checked
+        }
+
+        CheckBox {
+            visible: indicatorsEnabled.checked && !indicatorAccentColor.checked && !indicatorTextColor.checked
             id: indicatorDominantColor
             text: Wrappers.i18n("Use dominant icon color")
             checked: indicatorsPage.cfg_indicatorDominantColor
@@ -441,7 +449,7 @@ ConfigPage {
         }
     
         RowLayout {
-            visible: indicatorsEnabled.checked && !indicatorAccentColor.checked && !indicatorDominantColor.checked
+            visible: indicatorsEnabled.checked && !indicatorAccentColor.checked && !indicatorTextColor.checked && !indicatorDominantColor.checked
             spacing: indicatorsPage.smallSpacing
             Label {
                 text: Wrappers.i18n("Custom color:")
@@ -458,6 +466,13 @@ ConfigPage {
             }
         }
     
+        CheckBox {
+            visible: indicatorsEnabled.checked
+            text: Wrappers.i18n("Outline for contrast")
+            checked: indicatorsPage.cfg_indicatorOutline
+            onToggled: indicatorsPage.cfg_indicatorOutline = checked
+        }
+
         Item { height: indicatorsPage.largeSpacing; visible: indicatorsEnabled.checked }
     
         Label {
