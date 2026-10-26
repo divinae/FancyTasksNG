@@ -21,6 +21,13 @@ ConfigPage {
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
+            visible: DesktopActionsManager.helperError !== ""
+            type: Kirigami.MessageType.Warning
+            text: Wrappers.i18n("The FancyTasksNG helper could not start, so jump lists, recent documents and configuration export/import are unavailable. It needs python3 with the dbus-python and PyGObject modules. Error: %1", DesktopActionsManager.helperError)
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
             visible: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
             type: Kirigami.MessageType.Information
             text: Wrappers.i18n("This option is disabled when the widget is on a panel.")
@@ -261,7 +268,11 @@ ConfigPage {
     readonly property string configAppId: "io.github.daydve.fancytasksng"
 
     function toLocalPath(fileUrl) {
-        return fileUrl.toString().replace(/^file:\/\//, "");
+        return decodeURIComponent(fileUrl.toString().replace(/^file:\/\//, ""));
+    }
+
+    function helperUnavailableText() {
+        return Wrappers.i18n("The FancyTasksNG helper is not running. It needs python3 with the dbus-python and PyGObject modules.");
     }
 
     function showConfigIoStatus(text, isError) {
@@ -288,6 +299,8 @@ ConfigPage {
         DesktopActionsManager.exportConfig(path, payload, (result) => {
             if (result === "OK") {
                 advancedPage.showConfigIoStatus(Wrappers.i18n("Configuration exported successfully."), false);
+            } else if (!DesktopActionsManager.isHelperReply(result)) {
+                advancedPage.showConfigIoStatus(advancedPage.helperUnavailableText(), true);
             } else {
                 advancedPage.showConfigIoStatus(Wrappers.i18n("Failed to export configuration."), true);
             }
@@ -298,12 +311,16 @@ ConfigPage {
         const path = advancedPage.toLocalPath(fileUrl);
         configIoStatusLabel.text = "";
         DesktopActionsManager.importConfig(path, (result) => {
+            if (!DesktopActionsManager.isHelperReply(result)) {
+                advancedPage.showConfigIoStatus(advancedPage.helperUnavailableText(), true);
+                return;
+            }
             if (result.startsWith("ERROR:")) {
                 advancedPage.showConfigIoStatus(Wrappers.i18n("Failed to read the configuration file."), true);
                 return;
             }
             try {
-                advancedPage.applyImportedSettings(JSON.parse(result));
+                advancedPage.applyImportedSettings(JSON.parse(result.slice("OK:".length)));
             } catch (e) {
                 advancedPage.showConfigIoStatus(Wrappers.i18n("This file is not a valid FancyTasksNG configuration."), true);
             }

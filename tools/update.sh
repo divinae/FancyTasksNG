@@ -9,9 +9,6 @@ source "${SCRIPT_DIR}/functions.sh"
 
 PACKAGE_DIR="$(readlink -f "${SCRIPT_DIR}/../package")"
 
-log_info "Compiling translations..."
-"${SCRIPT_DIR}/compile_messages.sh"
-
 log_info "Updating plasmoid ..."
 kpackagetool6 -t Plasma/Applet --upgrade "${PACKAGE_DIR}"
 

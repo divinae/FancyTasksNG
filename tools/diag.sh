@@ -137,6 +137,32 @@ else
     SUM[theme]="(unknown)"
 fi
 
+# --- Python helpers (jump lists, recent documents, badges) -----------------
+section "Python helpers"
+if command -v python3 &> /dev/null; then
+    emit "$(python3 --version 2>&1)"
+    if PY_ERR="$(python3 -c 'import dbus, dbus.service; from gi.repository import GLib' 2>&1)"; then
+        emit "dbus-python + PyGObject: OK"
+        SUM[python_helpers]="OK"
+    else
+        emit "dbus-python + PyGObject: MISSING"
+        emit "$(echo "${PY_ERR}" | tail -n 1)"
+        SUM[python_helpers]="missing modules"
+    fi
+else
+    emit "python3 not found"
+    SUM[python_helpers]="no python3"
+fi
+if command -v busctl &> /dev/null; then
+    for name in io.github.daydve.fancytasksng.DesktopActions io.github.daydve.fancytasksng.Bridge; do
+        if busctl --user status "${name}" &> /dev/null; then
+            emit "${name}: running"
+        else
+            emit "${name}: not running"
+        fi
+    done
+fi
+
 # --- Active containments & widgets (from plasma-appletsrc) -----------------
 section "Active Plasma layout (containments and widgets)"
 if [ -f "${APPSRC}" ]; then
@@ -193,7 +219,7 @@ emit ""
     echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
     echo ""
     echo "## Summary"
-    for key in plasmoid_id plasmoid_version git_branch git_commit git_dirty os kernel session plasma kwin qt gpu scale theme; do
+    for key in plasmoid_id plasmoid_version git_branch git_commit git_dirty os kernel session plasma kwin qt gpu scale theme python_helpers; do
         printf "%-18s %s\n" "${key}:" "${SUM[$key]:-(n/a)}"
     done
     echo ""

@@ -19,7 +19,6 @@
 
 pragma ComponentBehavior: Bound
 
-import QtQuick.Effects 
 import QtQuick
 import QtQuick.Layouts
 
@@ -30,6 +29,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.taskmanager as TaskManager
 
 import "code/singletones"
+import "code/tools.js" as TaskTools
 
 Item {
     id: root
@@ -276,7 +276,7 @@ Item {
                 opacity: 1
                 visible: text.length !== 0 && root.showThumbnails
                 textFormat: Text.PlainText
-                horizontalAlignment: Text.AlignHCenter
+                horizontalAlignment: Text.AlignLeft
             }
             PlasmaComponents3.Label {
                 id: winTitle
@@ -288,7 +288,7 @@ Item {
                 
                 text: root.showThumbnails ? (root.titleIncludesTrack ? "" : root.title) : root.display
                 opacity: root.showThumbnails ? 0.75 : 1.0
-                horizontalAlignment: root.showThumbnails ? Text.AlignHCenter : Text.AlignLeft
+                horizontalAlignment: Text.AlignLeft
                 visible: text.length !== 0
                 textFormat: Text.PlainText
             }
@@ -302,7 +302,7 @@ Item {
                 
                 text: toolTipDelegate.isWin ? root.generateSubText() : ""
                 opacity: 0.6
-                horizontalAlignment: Text.AlignHCenter
+                horizontalAlignment: Text.AlignLeft
                 visible: root.showThumbnails && text.length !== 0 && text !== appNameHeading.text
                 textFormat: Text.PlainText
             }
@@ -345,8 +345,8 @@ Item {
     Item {
         id: thumbnailSourceItem
 
-        readonly property int targetWidth: Kirigami.Units.gridUnit * 14
-        readonly property int targetHeight: Math.round(targetWidth / (Screen.width / Screen.height))
+        readonly property int targetWidth: root.tooltipInstanceMaximumWidth
+        readonly property int targetHeight: Math.round(targetWidth / (toolTipDelegate ? toolTipDelegate.thumbnailAspectRatio : 16 / 10))
 
         Layout.preferredWidth: root.showThumbnails ? targetWidth : 0
         Layout.preferredHeight: root.showThumbnails ? targetHeight : 0
@@ -363,8 +363,9 @@ Item {
         }
 
         PlasmaExtras.Highlight {
+            id: thumbnailHighlight
             anchors.fill: hoverHandler
-            
+
             // Use opacity for smooth transition matching the player controls
             opacity: thumbnailSourceItem.thumbnailAreaHovered ? 1.0 : ((root.isGroup && isWindowActive) ? 0.6 : 0.0)
             Behavior on opacity { NumberAnimation { duration: Kirigami.Units.longDuration } }
@@ -385,7 +386,10 @@ Item {
             visible: active
             
             anchors.fill: hoverHandler
-            anchors.margins: Kirigami.Units.smallSpacing
+            // Keep the thumbnail inside the highlight frame so it doesn't cover its outline and rounded corners
+            anchors.margins: Math.max(Kirigami.Units.smallSpacing,
+                thumbnailHighlight.marginHints.left, thumbnailHighlight.marginHints.top,
+                thumbnailHighlight.marginHints.right, thumbnailHighlight.marginHints.bottom)
 
             source: thumbnailLoader.active && !thumbnailSourceItem.showIcon ? "X11Thumbnail.qml" : ""
             sourceComponent: thumbnailLoader.active && thumbnailSourceItem.showIcon ? iconItem : null
@@ -576,18 +580,10 @@ Item {
             width: Math.min(titleOverlayLabel.implicitWidth + hPadding * 2, maxOverlayWidth)
             height: titleOverlayLabel.implicitHeight + vPadding * 2
             
-            // Background Layer (Blurred Edges)
             Rectangle {
                 anchors.fill: parent
-                color: Qt.rgba(0, 0, 0, 0.45) 
-                radius: Kirigami.Units.smallSpacing
-                
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    blurEnabled: true
-                    blurMax: 8
-                    blur: 0.5 
-                }
+                color: Qt.rgba(0, 0, 0, 0.55)
+                radius: Kirigami.Units.cornerRadius
             }
             
             // Text Layer
@@ -622,9 +618,8 @@ Item {
                 }
                 
                 elide: Text.ElideRight
-                color: "white" 
-                font.bold: false
-                opacity: 0.85 
+                // Always light: drawn on a dark scrim over window content
+                color: "white"
             }
         }
 
@@ -632,33 +627,24 @@ Item {
         PlasmaComponents3.ToolButton {
             id: closeButtonOverlay
             z: 2003
-            visible: root.useOverlayStyle && root.isWin
-            
+            // Only shown while the mouse is over this window's tile
+            opacity: rootHover.hovered ? 1 : 0
+            visible: root.useOverlayStyle && root.isWin && opacity > 0
+            Behavior on opacity {
+                NumberAnimation { duration: Kirigami.Units.shortDuration }
+            }
+
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: Kirigami.Units.smallSpacing
-            
-            icon.name: "window-close"
-            display: PlasmaComponents3.AbstractButton.IconOnly
-            
-            width: height
-            height: titleOverlayContainer.height
 
-            background: Item {
-                Rectangle {
-                    anchors.fill: parent
-                    color: Qt.rgba(0, 0, 0, 0.45)
-                    radius: Kirigami.Units.smallSpacing
-                }
-                
-                PlasmaExtras.Highlight {
-                    anchors.fill: parent
-                    visible: closeButtonOverlay.hovered
-                    opacity: 0.8
-                    hovered: true
-                    pressed: closeButtonOverlay.pressed
-                }
-            }
+            icon.name: "window-close"
+            icon.width: Kirigami.Units.iconSizes.smallMedium
+            icon.height: Kirigami.Units.iconSizes.smallMedium
+            display: PlasmaComponents3.AbstractButton.IconOnly
+
+            width: height
+            // Default flat ToolButton background: nothing until hovered, like stock tooltips
 
             onClicked: {
                 if (root.parentTask && root.parentTask.tasksRoot) {
@@ -687,60 +673,12 @@ Item {
 }
 
     function generateSubText(): string {
-        const subTextEntries = [];
-        if (!root.config.showOnlyCurrentDesktop && virtualDesktopInfo.numberOfDesktops > 1) {
-            if (!isOnAllVirtualDesktops && virtualDesktops.length > 0) {
-                const virtualDesktopNameList = virtualDesktops.map(virtualDesktop => {
-                    const index = virtualDesktopInfo.desktopIds.indexOf(virtualDesktop);
-                    return virtualDesktopInfo.desktopNames[index];
-                });
-
-                subTextEntries.push(Wrappers.i18nc("Comma-separated list of desktops", "On %1", virtualDesktopNameList.join(", ")));
-            } else if (isOnAllVirtualDesktops) {
-                subTextEntries.push(Wrappers.i18nc("Comma-separated list of desktops", "Pinned to all desktops"));
-            }
-        }
-
-        if (activities.length === 0 && activityInfo.numberOfRunningActivities > 1) {
-            subTextEntries.push(Wrappers.i18nc("Which virtual desktop a window is currently on", "Available on all activities"));
-        } else if (activities.length > 0) {
-            const activityNames = activities.filter(activity => activity !== activityInfo.currentActivity).map(activity => activityInfo.activityName(activity)).filter(activityName => activityName !== "");
-            if (root.config.showOnlyCurrentActivity) {
-                if (activityNames.length > 0) {
-                    subTextEntries.push(Wrappers.i18nc("Activities a window is currently on (apart from the current one)", "Also available on %1", activityNames.join(", ")));
-                }
-            } else if (activityNames.length > 0) {
-                subTextEntries.push(Wrappers.i18nc("Which activities a window is currently on", "Available on %1", activityNames.join(", ")));
-            }
-        }
-
-        return subTextEntries.join("\n");
+        return TaskTools.locationSubTextEntries(Wrappers.i18nc, root.config, virtualDesktopInfo, activityInfo,
+            virtualDesktops, isOnAllVirtualDesktops, activities).join("\n");
     }
 
+    // Used so the close button closes the right window in a group
     function findMatchingTaskIndex() {
-        // Function to find the child task index that owns this winId
-        // Used to fix the close button closing the wrong window in a group
-        if (!tasksModel || !root.parentTask || root.parentTask.childCount === 0) return submodelIndex;
-        
-        const winId = root.currentWinId;
-        if (winId === undefined) return submodelIndex;
-
-        // Iterate through children of the parent task
-        const parentRow = root.parentTask.index;
-        const childCount = root.parentTask.childCount;
-        
-        for (let i = 0; i < childCount; ++i) {
-            // Create index for child i
-            const idx = tasksModel.makeModelIndex(parentRow, i);
-            
-            // Get WinIdList for this child
-            const winIds = tasksModel.data(idx, TaskManager.AbstractTasksModel.WinIdList);
-            
-            if (winIds && winIds.includes(winId)) {
-                return idx;
-            }
-        }
-        
-        return submodelIndex;
+        return TaskTools.childIndexForWindow(tasksModel, root.parentTask, root.currentWinId) || submodelIndex;
     }
 }

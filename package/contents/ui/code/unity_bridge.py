@@ -18,10 +18,6 @@ def set_pdeathsig():
     except Exception:
         pass
 
-class NullDevice:
-    def write(self, s): pass
-    def flush(self): pass
-
 """
 Unity Bridge Sniffer - DBus Re-emitter
 Listens for Unity signals and re-emits them on a private interface
@@ -33,31 +29,57 @@ class BridgeEmitter(dbus.service.Object):
         # We use a unique name for our bridge to avoid conflicts
         try:
             self.bus = dbus.SessionBus()
-            self.bus_name = dbus.service.BusName('io.github.daydve.fancytasksng.Bridge', bus=self.bus)
+            self.bus_name = dbus.service.BusName('io.github.daydve.fancytasksng.Bridge', bus=self.bus, do_not_queue=True)
             dbus.service.Object.__init__(self, self.bus_name, '/Bridge')
             print("Bridge: Re-emitter is ready on io.github.daydve.fancytasksng.Bridge")
+        except dbus.exceptions.NameExistsException:
+            # Another task manager instance already runs the bridge; its signals reach everyone.
+            print("Bridge: already running")
+            sys.exit(0)
         except Exception as e:
-            print(f"Bridge error: {e}")
+            print(f"Bridge error: {e}", file=sys.stderr)
             sys.exit(1)
 
-    @dbus.service.signal('io.github.daydve.fancytasksng.BadgeUpdate', signature='sid')
-    def UpdateSignal(self, appId, count, progress):
+    @dbus.service.signal('io.github.daydve.fancytasksng.BadgeUpdate', signature='sidb')
+    def UpdateSignal(self, appId, count, progress, urgent):
         # This signal will be sent to the bus
         pass
 
-def handle_unity_update(appId, properties, **kwargs):
-    count = properties.get("count", 0)
-    visible = properties.get("count-visible", True)
-    final_count = int(count) if visible else 0
+# appId -> last known LauncherEntry properties. Update signals only carry the
+# properties that changed, so they are merged into this state before re-emitting.
+app_state = {}
+# D-Bus unique name of the sender -> appIds it published, to reset them when it exits
+sender_apps = {}
 
-    progress = properties.get("progress", 0.0)
-    prog_visible = properties.get("progress-visible", False)
-    final_progress = float(progress) if prog_visible else -1.0
-    
+
+def emit_state(appId):
+    props = app_state.get(appId, {})
+    final_count = int(props.get("count", 0)) if props.get("count-visible", True) else 0
+    final_progress = float(props.get("progress", 0.0)) if props.get("progress-visible", False) else -1.0
+    urgent = bool(props.get("urgent", False))
+
     # Re-emit on our private channel
-    emitter.UpdateSignal(str(appId), final_count, final_progress)
+    emitter.UpdateSignal(str(appId), final_count, final_progress, urgent)
+
+
+def handle_unity_update(appId, properties, sender=None, **kwargs):
+    appId = str(appId)
+    app_state.setdefault(appId, {}).update(properties)
+    if sender:
+        sender_apps.setdefault(str(sender), set()).add(appId)
+    emit_state(appId)
+
+
+def handle_name_owner_changed(name, old_owner, new_owner):
+    # An app that set a badge, progress or urgent flag exited: clear what it published
+    if new_owner or name not in sender_apps:
+        return
+    for appId in sender_apps.pop(name):
+        app_state.pop(appId, None)
+        emit_state(appId)
 
 if __name__ == '__main__':
+    set_pdeathsig()
     DBusGMainLoop(set_as_default=True)
     
     emitter = BridgeEmitter()
@@ -84,7 +106,14 @@ if __name__ == '__main__':
     bus.add_signal_receiver(
         handle_unity_update,
         signal_name="Update",
-        dbus_interface="com.canonical.Unity.LauncherEntry"
+        dbus_interface="com.canonical.Unity.LauncherEntry",
+        sender_keyword="sender"
+    )
+    bus.add_signal_receiver(
+        handle_name_owner_changed,
+        signal_name="NameOwnerChanged",
+        dbus_interface="org.freedesktop.DBus",
+        bus_name="org.freedesktop.DBus"
     )
     
     loop = GLib.MainLoop()

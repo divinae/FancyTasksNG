@@ -17,16 +17,63 @@ Item {
     id: root
 
     property var cache: ({})
+    // key -> Date.now() of the last fetch; entries younger than cacheFreshMs are not refetched
+    property var cacheStamps: ({})
+    readonly property int cacheFreshMs: 15000
+    readonly property int cacheMaxEntries: 64
+
+    // Last error line printed by the Python helper if it failed to start
+    // (typically a missing python3-dbus / PyGObject module); empty while it works.
+    property string helperError: ""
+
+    // Bus name of the helper; also the name of its main interface
+    readonly property string _service: "io.github.daydve.fancytasksng.DesktopActions"
+
+    function _shellQuote(text) {
+        return "'" + String(text).replace(/'/g, "'\\''") + "'";
+    }
 
     Plasma5Support.DataSource {
         id: dbusDaemonStarter
         engine: "executable"
         connectedSources: []
         Component.onCompleted: {
-            // Start the DBus daemon ONCE
+            // Start the DBus daemon ONCE; a second instance exits cleanly if one already runs
             let scriptPath = Qt.resolvedUrl("../desktop_actions.py").toString().replace(/^file:\/\//, "");
-            connectSource("python3 '" + scriptPath + "'");
+            connectSource("python3 " + root._shellQuote(decodeURIComponent(scriptPath)));
         }
+        // Only delivered when the helper exits; a running helper never reports here
+        onNewData: (sourceName, data) => {
+            const exitCode = data["exit code"];
+            if (exitCode) {
+                const lines = String(data.stderr || "").trim().split("\n");
+                root.helperError = lines[lines.length - 1] || ("exit code " + exitCode);
+                console.warn("FancyTasksNG: desktop actions helper failed:", data.stderr);
+            }
+            disconnectSource(sourceName);
+        }
+    }
+
+    // Calls a helper method and passes its reply (or the D-Bus error text) to callback as a string.
+    function _call(iface, member, args, signature, callback) {
+        const pendingReply = DBus.SessionBus.asyncCall({
+            "service": root._service,
+            "path": "/DesktopActions",
+            "iface": iface,
+            "member": member,
+            "arguments": args,
+            "signature": signature
+        });
+        pendingReply.finished.connect(() => {
+            const value = pendingReply.value;
+            if (callback) callback(value !== undefined && value !== null ? String(value) : "");
+            pendingReply.destroy();
+        });
+    }
+
+    // True if a reply string came from the helper rather than from D-Bus failing to reach it
+    function isHelperReply(reply) {
+        return reply.startsWith("{") || reply === "OK" || reply.startsWith("OK:") || reply.startsWith("ERROR:");
     }
 
     // Single source of truth for the cache key: query/prefetch/_doQuery must
@@ -47,13 +94,12 @@ Item {
     function query(launcherUrl, appPid, showHistory, limit, callback) {
         const key = _buildKey(launcherUrl, appPid, showHistory, limit);
 
-        // Always do a background query to keep data fresh,
-        // but if we have cache, we can return it immediately for instant UI
+        // Return cached data immediately for instant UI, and refresh it in the
+        // background only when it is older than cacheFreshMs
         if (key in cache && callback) {
             callback(cache[key]);
-            // If we already have a callback, we might not want to re-trigger UI
-            // but we SHOULD update the cache in background.
-            _doQuery(String(launcherUrl), appPid, showHistory, limit, null);
+            if (Date.now() - (cacheStamps[key] || 0) > cacheFreshMs)
+                _doQuery(String(launcherUrl), appPid, showHistory, limit, null);
             return;
         }
 
@@ -71,19 +117,10 @@ Item {
 
     function _doQuery(launcherUrl, appPid, showHistory, limit, callback) {
         const key = _buildKey(launcherUrl, appPid, showHistory, limit);
-        const pendingReply = DBus.SessionBus.asyncCall({
-            "service": "io.github.daydve.fancytasksng.DesktopActions",
-            "path": "/DesktopActions",
-            "iface": "io.github.daydve.fancytasksng.DesktopActions",
-            "member": "Query",
-            "arguments": [String(launcherUrl || ""), !!showHistory, parseInt(limit || 10), parseInt(appPid || 0)],
-            "signature": "(sbii)"
-        });
-
-        pendingReply.finished.connect(() => {
-            const stdoutValue = pendingReply.value;
-            const stdout = stdoutValue !== undefined && stdoutValue !== null ? String(stdoutValue).trim() : "";
-            
+        _call(root._service, "Query",
+              [String(launcherUrl || ""), !!showHistory, parseInt(limit || 10), parseInt(appPid || 0)], "(sbii)",
+              reply => {
+            const stdout = reply.trim();
             // Native DBus might return empty array (coerced to "") or empty string on errors (e.g. service starting up)
             if (!stdout) {
                 if (callback) callback({jumpList: [], recentDocs: []});
@@ -97,17 +134,28 @@ Item {
                 let result = null;
                 try {
                     result = JSON.parse(stdout);
-                    root.cache[key] = result;
+                    root._store(key, result);
                 } catch (e) {
                     console.warn("DesktopActionsManager JSON parse error:", e, stdout);
                     result = {jumpList: [], recentDocs: []};
                 }
-                
+
                 // Call callback outside the try-catch so UI errors aren't swallowed!
                 if (callback) callback(result);
             }
-            pendingReply.destroy();
         });
+    }
+
+    function _store(key, result) {
+        // Keys include the app PID, so drop the oldest entries as apps come and go
+        const keys = Object.keys(cache);
+        if (!(key in cache) && keys.length >= cacheMaxEntries) {
+            const oldest = keys.reduce((a, b) => (cacheStamps[a] || 0) <= (cacheStamps[b] || 0) ? a : b);
+            delete cache[oldest];
+            delete cacheStamps[oldest];
+        }
+        cache[key] = result;
+        cacheStamps[key] = Date.now();
     }
 
     function invalidate(launcherUrl) {
@@ -118,79 +166,32 @@ Item {
             for (let k in cache) {
                 if (k === String(launcherUrl) || k.startsWith(pattern)) {
                     delete cache[k];
+                    delete cacheStamps[k];
                 }
             }
         } else {
             cache = {};
+            cacheStamps = {};
         }
     }
 
     function clearRecentDocuments(launcherUrl) {
-        const pendingReply = DBus.SessionBus.asyncCall({
-            "service": "io.github.daydve.fancytasksng.DesktopActions",
-            "path": "/DesktopActions",
-            "iface": "io.github.daydve.fancytasksng.DesktopActions",
-            "member": "ClearRecent",
-            "arguments": [String(launcherUrl || "")],
-            "signature": "(s)"
-        });
-        pendingReply.finished.connect(() => {
-            invalidate(launcherUrl);
-            pendingReply.destroy();
-        });
+        _call(root._service, "ClearRecent", [String(launcherUrl || "")], "(s)", () => invalidate(launcherUrl));
     }
 
     function executeCommand(execCmd) {
-        const pendingReply = DBus.SessionBus.asyncCall({
-            "service": "io.github.daydve.fancytasksng.DesktopActions",
-            "path": "/DesktopActions",
-            "iface": "io.github.daydve.fancytasksng.DesktopActions",
-            "member": "Execute",
-            "arguments": [String(execCmd || "")],
-            "signature": "(s)"
-        });
-        pendingReply.finished.connect(() => pendingReply.destroy());
+        _call(root._service, "Execute", [String(execCmd || "")], "(s)", null);
     }
 
     function exportConfig(path, content, callback) {
-        const pendingReply = DBus.SessionBus.asyncCall({
-            "service": "io.github.daydve.fancytasksng.DesktopActions",
-            "path": "/DesktopActions",
-            "iface": "io.github.daydve.fancytasksng.Config",
-            "member": "ExportConfig",
-            "arguments": [String(path || ""), String(content || "")],
-            "signature": "(ss)"
-        });
-        pendingReply.finished.connect(() => {
-            if (callback) callback(String(pendingReply.value || ""));
-            pendingReply.destroy();
-        });
+        _call("io.github.daydve.fancytasksng.Config", "ExportConfig", [String(path || ""), String(content || "")], "(ss)", callback);
     }
 
     function importConfig(path, callback) {
-        const pendingReply = DBus.SessionBus.asyncCall({
-            "service": "io.github.daydve.fancytasksng.DesktopActions",
-            "path": "/DesktopActions",
-            "iface": "io.github.daydve.fancytasksng.Config",
-            "member": "ImportConfig",
-            "arguments": [String(path || "")],
-            "signature": "(s)"
-        });
-        pendingReply.finished.connect(() => {
-            if (callback) callback(String(pendingReply.value || ""));
-            pendingReply.destroy();
-        });
+        _call("io.github.daydve.fancytasksng.Config", "ImportConfig", [String(path || "")], "(s)", callback);
     }
 
     function openUrl(url, launcherUrl) {
-        const pendingReply = DBus.SessionBus.asyncCall({
-            "service": "io.github.daydve.fancytasksng.DesktopActions",
-            "path": "/DesktopActions",
-            "iface": "io.github.daydve.fancytasksng.DesktopActions",
-            "member": "OpenUrl",
-            "arguments": [String(url || ""), String(launcherUrl || "")],
-            "signature": "(ss)"
-        });
-        pendingReply.finished.connect(() => pendingReply.destroy());
+        _call(root._service, "OpenUrl", [String(url || ""), String(launcherUrl || "")], "(ss)", null);
     }
 }

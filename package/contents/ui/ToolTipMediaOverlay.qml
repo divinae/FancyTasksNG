@@ -11,6 +11,10 @@ import org.kde.plasma.components as PlasmaComponents3
 Item {
     id: overlayRoot
 
+    // Drawn over the window thumbnail, so use the theme's dark-on-content color set
+    Kirigami.Theme.colorSet: Kirigami.Theme.Complementary
+    Kirigami.Theme.inherit: false
+
     required property var mediaController
     required property bool hoveredState
 
@@ -30,8 +34,8 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.6)
-        radius: overlayRoot.smallSpacing
+        color: Qt.rgba(0, 0, 0, 0.55)
+        radius: Kirigami.Units.cornerRadius
 
         opacity: overlayRoot.hoveredState ? 1.0 : 0.0
         Behavior on opacity {
@@ -134,7 +138,7 @@ Item {
             PlasmaComponents3.Label {
                 text: Math.round(slider.value / slider.to * 100) + "%"
                 Layout.minimumWidth: overlayRoot.gridUnit * 1.5
-                font.pixelSize: 10
+                font: Kirigami.Theme.smallFont
                 horizontalAlignment: Text.AlignHCenter
             }
         }

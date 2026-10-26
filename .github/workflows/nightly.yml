@@ -17,10 +17,7 @@ on:
     branches: [develop]
     paths:
       - 'package/**'
-      - 'tools/translate/languages/**'
       - 'tools/build.sh'
-      - 'tools/compile_messages.sh'
-      - 'tools/extract_messages.sh'
       - 'tools/functions.sh'
   workflow_dispatch:
 

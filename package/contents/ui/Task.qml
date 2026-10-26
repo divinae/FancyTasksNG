@@ -139,7 +139,7 @@ Item {
         switch (true) {
             case (task.model.IsLauncher && task.winIdList.length === 0):
                 return "launcher";
-            case task.model.IsDemandingAttention:
+            case task.demandsAttention:
                 return "attention";
             case task.model.IsActive:
                 return "active";
@@ -180,6 +180,10 @@ Item {
         }
     }
     
+    // Window attention request, or the app's LauncherEntry "urgent" flag (e.g. a chat app with a new message)
+    readonly property bool demandsAttention: !!task.model && (task.model.IsDemandingAttention === true
+        || (BadgeManager.countVersion >= 0 && BadgeManager.getUrgent(task.model.AppId)))
+
     readonly property int badgeCount: {
         if (!task.model) return 0;
         return (BadgeManager.countVersion >= 0) ? BadgeManager.getUnreadCount(task.model.AppId) : 0;
@@ -494,18 +498,32 @@ Item {
     Keys.onDownPressed: event => Keys.rightPressed(event)
     Keys.onLeftPressed: event => {
         if (!task.inPopup && (event.modifiers & Qt.ControlModifier) && (event.modifiers & Qt.ShiftModifier)) {
-            tasksRoot.tasksModel.move(task.index, task.index 
-                - 1);
+            task.moveBy(-1);
         } else {
             event.accepted = false;
         }
     }
     Keys.onRightPressed: event => {
         if (!task.inPopup && (event.modifiers & Qt.ControlModifier) && (event.modifiers & Qt.ShiftModifier)) {
-            tasksRoot.tasksModel.move(task.index, task.index + 1);
+            task.moveBy(1);
         } else {
             event.accepted = false;
         }
+    }
+
+    // Move this task by delta visible slots. task.index is a row in the filtered view,
+    // so both ends are mapped to source rows before moving (as drag-and-drop does).
+    function moveBy(delta) {
+        const proxyModel = tasksRoot.filteredTasksModel;
+        const targetProxyIdx = proxyModel.index(task.index + delta, 0);
+        if (!targetProxyIdx.valid)
+            return;
+        const fromRow = task.modelIndex().row;
+        const toRow = proxyModel.mapToSource(targetProxyIdx).row;
+        if (fromRow === -1 || toRow === -1 || fromRow === toRow)
+            return;
+        if (tasksRoot.tasksModel.move(fromRow, toRow))
+            tasksRoot.tasksModel.syncLaunchers();
     }
 
     function modelIndex(): /*QModelIndex*/ var {
@@ -704,27 +722,27 @@ Item {
         
         property string basePrefix: !task.model ? "normal" :
                                     task.model.IsLauncher ? "" :
-                                    task.model.IsDemandingAttention ? "attention" :
+                                    task.demandsAttention ? "attention" :
                                     task.model.IsMinimized ? "minimized" :
                                     task.model.IsActive ? "focus" : "normal"
         
         prefix: isHovered ?
             TaskTools.taskPrefixHovered(basePrefix, task.location) : TaskTools.taskPrefix(basePrefix, task.location)
 
-        visible: (!task.model || task.model.IsLauncher || task.model.IsDemandingAttention || task.model.IsActive || backgroundFrame.isHovered) ?
+        visible: (!task.model || task.model.IsLauncher || task.demandsAttention || task.model.IsActive || backgroundFrame.isHovered) ?
             true : !task.config.disableButtonInactiveSvg
 
         layer.enabled: (!task.model || task.model.IsLauncher) ? false :
-                       (task.model.IsDemandingAttention && task.config.attentionCustomColorEnabled) ? true :
+                       (task.demandsAttention && task.config.attentionCustomColorEnabled) ? true :
                        (!task.config.buttonColorize) ? false :
-                       (task.model.IsDemandingAttention && !backgroundFrame.isHovered) ? false :
+                       (task.demandsAttention && !backgroundFrame.isHovered) ? false :
                        (task.model.IsActive || backgroundFrame.isHovered) ? true :
                        (!task.config.disableButtonInactiveSvg && task.config.buttonColorizeInactive)
 
         layer.effect: MultiEffect {
             brightness: 1.0
             colorization: 1.0
-            colorizationColor: (task.model.IsDemandingAttention && task.config.attentionCustomColorEnabled) ?
+            colorizationColor: (task.demandsAttention && task.config.attentionCustomColorEnabled) ?
                 task.config.attentionCustomColor :
                 (task.config.buttonColorizeDominant ? backgroundFrame.indicatorColor : task.config.buttonColorizeCustom)
         }

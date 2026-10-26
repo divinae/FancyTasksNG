@@ -23,12 +23,6 @@ trap cleanup EXIT
 
 # ---------------------------------------------------------
 
-# Run translation scripts in a subshell
-(
-    "${SCRIPT_DIR}/extract_messages.sh"
-    "${SCRIPT_DIR}/compile_messages.sh"
-)
-
 # Keep ConfigPage.qml's cfg_*Default values in sync with main.xml
 python3 "${SCRIPT_DIR}/sync_defaults.py"
 
@@ -45,8 +39,8 @@ DISPLAY_VERSION="$(resolve_display_version "${BUILD_DIR}/metadata.json")"
 set_metadata_version "${BUILD_DIR}/metadata.json" "${DISPLAY_VERSION}"
 
 # Create archive
-cd "${BUILD_DIR}"
+cd "${BUILD_DIR}" || exit 1
 zip -q -r "${RELEASE_DIR}/${PACKAGE_NAME}.plasmoid" .
-cd - > /dev/null
+cd - > /dev/null || exit 1
 
 log_success "Build complete: ${RELEASE_DIR}/${PACKAGE_NAME}.plasmoid"

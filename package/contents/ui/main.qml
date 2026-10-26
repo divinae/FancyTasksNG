@@ -39,6 +39,7 @@ import org.kde.kitemmodels as KItemModels
 import "code/layoutmetrics.js" as LayoutMetrics
 import "code/tools.js" as TaskTools
 import "code/FloatingLogic.js" as FloatingLogic
+import "code/singletones"
 
 PlasmoidItem {
     id: tasks
@@ -123,6 +124,23 @@ PlasmoidItem {
             tasks.filteredTasksModel.invalidateFilter();
         }
 
+        function onGroupPopupsChanged() {
+            modelUpdateTimer.restart();
+        }
+        // hideActivatedLaunchers and the grouping threshold depend on icons-only mode
+        function onIconOnlyChanged() {
+            modelUpdateTimer.restart();
+        }
+        // Edited from the settings page; the context menu writes these through the model
+        function onGroupingAppIdBlacklistChanged() {
+            if (tasks.tasksModel && JSON.stringify(tasks.tasksModel.groupingAppIdBlacklist) !== JSON.stringify(tasks.config.groupingAppIdBlacklist))
+                tasks.tasksModel.groupingAppIdBlacklist = tasks.config.groupingAppIdBlacklist;
+        }
+        function onGroupingLauncherUrlBlacklistChanged() {
+            if (tasks.tasksModel && JSON.stringify(tasks.tasksModel.groupingLauncherUrlBlacklist) !== JSON.stringify(tasks.config.groupingLauncherUrlBlacklist))
+                tasks.tasksModel.groupingLauncherUrlBlacklist = tasks.config.groupingLauncherUrlBlacklist;
+        }
+
         function onLaunchersChanged(): void {
             if (tasks.tasksModel && !tasks._isInternalLauncherUpdate) {
                 tasks.tasksModel.launcherList = tasks.config.launchers;
@@ -140,20 +158,12 @@ PlasmoidItem {
     property real instantHoveredFraction: 0.5
     property bool isTooltipHovered: false
 
-    // PERSIST PARENT FOR FADE-OUT ANIMATION
+    // Keeps the tooltip anchored while it closes
     property Item lastTooltipParent: null
 
-    property bool tooltipAnimationEnabled: true
-
     function hideTooltipImmediately() {
-        tasks.tooltipAnimationEnabled = false;
         tasks.currentHoveredTask = null;
         tasks.toolTipOpenedByClick = null;
-        Qt.callLater(() => {
-            if (tasks) {
-                tasks.tooltipAnimationEnabled = true;
-            }
-        });
     }
 
     // Key: WinId, Value: { result: ItemGrabResult, stamp: ms }
@@ -333,7 +343,7 @@ PlasmoidItem {
         id: internalTasksModel
 
         virtualDesktop: virtualDesktopInfo.currentDesktop
-        screenGeometry: tasks.containment.screenGeometry
+        screenGeometry: tasks.containment ? tasks.containment.screenGeometry : Qt.rect(0, 0, 0, 0)
         activity: activityInfo.currentActivity
 
         onLauncherListChanged: {
@@ -449,14 +459,22 @@ PlasmoidItem {
         // The above is now handled by filteredTasksModel proxy to prevent crashes.
         tasks.tasksModel.filterNotMinimized = false;
 
-        tasks.tasksModel.hideActivatedLaunchers = tasks.iconsOnly || tasks.tasksModel.launchInPlace;
+        // Set the launcher flags before sortMode: entering SortManual seeds the
+        // sort map from them. separateLaunchers stays on (as upstream does) so
+        // libtaskmanager re-sorts launcher-backed windows into their launcher
+        // slot on every insert; with it off, a newly opened pinned app lands at
+        // the end because its hidden launcher is not found as a sibling.
+        const launchInPlace = (tasks.config.sortingStrategy === 1 || tasks.config.sortingStrategy === 0);
+        tasks.tasksModel.launchInPlace = launchInPlace;
+        tasks.tasksModel.hideActivatedLaunchers = tasks.iconsOnly || launchInPlace;
+        tasks.tasksModel.separateLaunchers = true;
         tasks.tasksModel.sortMode = tasks.sortModeEnumValue(tasks.config.sortingStrategy);
-        tasks.tasksModel.launchInPlace = (tasks.config.sortingStrategy === 1 || tasks.config.sortingStrategy === 0);
-        tasks.tasksModel.separateLaunchers = (tasks.config.sortingStrategy !== 1);
 
         tasks.tasksModel.groupMode = tasks.groupModeEnumValue(tasks.config.groupingStrategy);
         tasks.tasksModel.groupInline = !tasks.config.groupPopups;
-        tasks.tasksModel.groupingWindowTasksThreshold = 0;
+        // -1 groups always; otherwise windows of an app are only grouped once the bar can't fit them
+        tasks.tasksModel.groupingWindowTasksThreshold = Qt.binding(() => (tasks.config.onlyGroupWhenFull && !tasks.iconsOnly)
+            ? LayoutMetrics.optimumCapacity(tasks.width, tasks.height) + 1 : -1);
 
         internalFilteredTasksModel.invalidateFilter();
 
@@ -547,6 +565,22 @@ PlasmoidItem {
         if (Plasmoid.immutability !== PlasmaCore.Types.SystemImmutable && tasks.tasksModel)
             tasks.tasksModel.requestRemoveLauncher(url);
     }
+    // Called by plasmashell for the Meta+1..9 shortcuts (org.kde.plasma.multitasking)
+    function activateTaskAtIndex(index: var): void {
+        if (typeof index !== "number")
+            return;
+        const task = internalTaskRepeater.itemAt(index) as Task;
+        if (task)
+            TaskTools.activateTask(task.modelIndex(), task.model, null, task, Plasmoid, tasks, windowViewEffectWatcher.registered);
+    }
+    // Called by plasmashell for the Meta+Shift+1..9 shortcuts
+    function newInstanceForTaskAtIndex(index: var): void {
+        if (typeof index !== "number")
+            return;
+        const task = internalTaskRepeater.itemAt(index) as Task;
+        if (task)
+            TaskTools.activateTask(task.modelIndex(), task.model, Qt.ShiftModifier, task, Plasmoid, tasks, windowViewEffectWatcher.registered);
+    }
     function adjustGlobalVolume(increment: int) {
         const audioManager = audioStreamManagerLoader.item;
         const pSink = "preferredSink";
@@ -618,21 +652,10 @@ PlasmoidItem {
             onTriggered: tasks.publishIconGeometries(taskListView.children)
         }
 
-        Timer {
-            id: startupSortFixTimer
-            interval: 2000
-            running: true
-            repeat: false
-            onTriggered: {
-                tasks.tasksModel.launcherList = tasks.config.launchers;
-                tasks.tasksModel.syncLaunchers();
-            }
-        }
-
         Binding {
             target: Plasmoid
             property: "status"
-            value: (tasks.tasksModel && tasks.tasksModel.anyTaskDemandsAttention && tasks.config.unhideOnAttention ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.PassiveStatus)
+            value: (tasks.tasksModel && (tasks.tasksModel.anyTaskDemandsAttention || BadgeManager.anyUrgent) && tasks.config.unhideOnAttention ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.PassiveStatus)
             restoreMode: Binding.RestoreBinding
         }
 
@@ -753,7 +776,7 @@ PlasmoidItem {
             active: tasks.currentHoveredTask !== null
             blockFirstEnter: false
             edge: {
-                switch (tasks.location) {
+                switch (tasks.effectiveLocation) {
                 case PlasmaCore.Types.BottomEdge:
                     return Qt.TopEdge;
                 case PlasmaCore.Types.TopEdge:
@@ -817,6 +840,9 @@ PlasmoidItem {
                 Connections {
                     target: tasks.effectiveTasksModel
                     function onRowsAboutToBeRemoved(parent, first, last) {
+                        // Child rows of a group are not delegates of this repeater.
+                        if (parent && parent.valid)
+                            return;
                         for (let i = first; i <= last; ++i) {
                             tasks.handleItemRemoval(internalTaskRepeater.itemAt(i));
                         }
@@ -837,157 +863,89 @@ PlasmoidItem {
 
         location: tasks.effectiveLocation
         type: PlasmaCore.Dialog.Tooltip
-
-        backgroundHints: PlasmaCore.Types.NoBackground
-        flags: Qt.ToolTip | Qt.FramelessWindowHint | Qt.WA_TranslucentBackground | Qt.BypassWindowManagerHint
+        // Qt.ToolTip makes libplasma keep all frame borders (and rounded corners) on the panel side too
+        flags: Qt.ToolTip | Qt.FramelessWindowHint
         hideOnWindowDeactivate: false
 
         readonly property bool shouldShow: tasks.config.enableToolTips && tasks.currentHoveredTask !== null && !tasks.currentHoveredTask.inPopup
-        visible: (shouldShow && toolTipInstance.implicitWidth > 0) || winContainer.opacity > 0
+        visible: shouldShow && tooltipContent.width > 0 && tooltipContent.height > 0
         visualParent: tasks.currentHoveredTask ? tasks.currentHoveredTask.tooltipAnchor : tasks.lastTooltipParent
 
         mainItem: Item {
-            id: winContainer
+            id: tooltipContent
 
-            readonly property real targetWidth: toolTipInstance.implicitWidth + winBgFrame.margins.left + winBgFrame.margins.right
-            readonly property real targetHeight: toolTipInstance.implicitHeight + winBgFrame.margins.top + winBgFrame.margins.bottom
+            // Inner padding on top of the theme frame's margins, like Plasma's default tooltip,
+            // so content (e.g. thumbnail tiles) doesn't run into the frame's rounded corners
+            readonly property int padding: Kirigami.Units.smallSpacing
 
-            readonly property bool isTop: tasks.effectiveLocation === PlasmaCore.Types.TopEdge
-            readonly property bool isLeft: tasks.effectiveLocation === PlasmaCore.Types.LeftEdge
-            readonly property bool isRight: tasks.effectiveLocation === PlasmaCore.Types.RightEdge
-            readonly property bool isBottom: !isLeft && !isRight && !isTop
-
-            // Shadow needs transparent space on free sides to prevent clipping.
-            readonly property int shadowPadding: 16
-            // 8px gap allows an 8px radius shadow to render fully on the panel side
-            readonly property int gapSize: 8
-
-            readonly property int marginTop: isTop ? gapSize : shadowPadding
-            readonly property int marginBottom: isBottom ? gapSize : shadowPadding
-            readonly property int marginLeft: isLeft ? gapSize : shadowPadding
-            readonly property int marginRight: isRight ? gapSize : shadowPadding
-
-            // Cache the last valid dimensions when the tooltip was loaded.
-            // When toolTipInstance.implicitWidth drops to 0 during closure or reload,
-            // we use the cached dimensions to prevent the dialog window from
-            // instantly shrinking to borders (margins) size.
+            // The Loader-based content drops to 0x0 for a moment while it switches between
+            // tasks; keep the last real size so the dialog doesn't unmap and flicker
             property real lastWidth: 0
             property real lastHeight: 0
-
-            onTargetWidthChanged: {
-                if (toolTipInstance.implicitWidth > 0) {
-                    lastWidth = targetWidth;
+            readonly property real contentWidth: toolTipInstance.implicitWidth > 0 ? toolTipInstance.implicitWidth : lastWidth
+            readonly property real contentHeight: toolTipInstance.implicitHeight > 0 ? toolTipInstance.implicitHeight : lastHeight
+            Connections {
+                target: toolTipInstance
+                function onImplicitWidthChanged() {
+                    if (toolTipInstance.implicitWidth > 0)
+                        tooltipContent.lastWidth = toolTipInstance.implicitWidth;
                 }
-            }
-            onTargetHeightChanged: {
-                if (toolTipInstance.implicitHeight > 0) {
-                    lastHeight = targetHeight;
-                }
-            }
-
-            implicitWidth: (toolTipInstance.implicitWidth > 0 ? targetWidth : lastWidth) + marginLeft + marginRight
-            implicitHeight: (toolTipInstance.implicitHeight > 0 ? targetHeight : lastHeight) + marginTop + marginBottom
-            width: implicitWidth
-            height: implicitHeight
-
-            Behavior on implicitWidth {
-                enabled: tasks.tooltipAnimationEnabled && windowTooltipDialog.shouldShow
-                NumberAnimation {
-                    duration: 150
-                    easing.type: Easing.OutCubic
-                }
-            }
-            Behavior on implicitHeight {
-                enabled: tasks.tooltipAnimationEnabled && windowTooltipDialog.shouldShow
-                NumberAnimation {
-                    duration: 150
-                    easing.type: Easing.OutCubic
+                function onImplicitHeightChanged() {
+                    if (toolTipInstance.implicitHeight > 0)
+                        tooltipContent.lastHeight = toolTipInstance.implicitHeight;
                 }
             }
 
-            opacity: windowTooltipDialog.shouldShow ? 1 : 0
-            Behavior on opacity {
-                enabled: tasks.tooltipAnimationEnabled
-                NumberAnimation {
-                    duration: Kirigami.Units.longDuration
-                    easing.type: Easing.OutCubic
-                }
-            }
+            width: contentWidth > 0 ? contentWidth + padding * 2 : 0
+            height: contentHeight > 0 ? contentHeight + padding * 2 : 0
 
-            Kirigami.ShadowedRectangle {
-                id: winBgFrame
+            ToolTipDelegate {
+                id: toolTipInstance
 
                 Kirigami.Theme.colorSet: Kirigami.Theme.Tooltip
                 Kirigami.Theme.inherit: false
 
-                width: winContainer.targetWidth
-                height: winContainer.targetHeight
+                x: tooltipContent.padding
+                y: tooltipContent.padding
+                width: tooltipContent.contentWidth
+                height: tooltipContent.contentHeight
 
-                color: Kirigami.Theme.backgroundColor
-                radius: 4
+                onContainsMouseChanged: tasks.isTooltipHovered = containsMouse
 
-                shadow.size: 16
-                shadow.color: Qt.rgba(0, 0, 0, 0.6)
-                shadow.xOffset: 0
-                shadow.yOffset: 0
+                parentTask: tasks.currentHoveredTask
+                tasksModel: tasks.tasksModel
+                mpris2Model: mpris2Source
+                audioStreamManager: tasks.audioStreamManager
 
-                anchors.fill: parent
-                anchors.topMargin: winContainer.marginTop
-                anchors.bottomMargin: winContainer.marginBottom
-                anchors.leftMargin: winContainer.marginLeft
-                anchors.rightMargin: winContainer.marginRight
+                readonly property var taskModel: parentTask ? parentTask.model : null
 
-                readonly property int tooltipFramePadding: 4
-                readonly property var margins: ({
-                        left: tooltipFramePadding,
-                        top: tooltipFramePadding,
-                        right: tooltipFramePadding,
-                        bottom: tooltipFramePadding
-                    })
-
-                ToolTipDelegate {
-                    id: toolTipInstance
-                    clip: true
-                    anchors.fill: parent
-                    anchors.margins: winBgFrame.tooltipFramePadding
-
-                    onContainsMouseChanged: tasks.isTooltipHovered = containsMouse
-
-                    parentTask: tasks.currentHoveredTask
-                    tasksModel: tasks.tasksModel
-                    mpris2Model: mpris2Source
-                    audioStreamManager: tasks.audioStreamManager
-
-                    readonly property var taskModel: parentTask ? parentTask.model : null
-
-                    // parentTask.index is a row in the filtered proxy; map it to the source model,
-                    // otherwise lookups below read the wrong task whenever filters are active
-                    rootIndex: {
-                        if (parentTask) {
-                            const idx = parentTask.modelIndex();
-                            if (idx !== undefined && idx !== null) return idx;
-                        }
-                        return internalTasksModel.makeModelIndex(parentTask ? parentTask.index : 0, -1);
+                // parentTask.index is a row in the filtered proxy; map it to the source model,
+                // otherwise lookups below read the wrong task whenever filters are active
+                rootIndex: {
+                    if (parentTask) {
+                        const idx = parentTask.modelIndex();
+                        if (idx !== undefined && idx !== null) return idx;
                     }
-                    appName: taskModel ? taskModel.AppName : ""
-                    pidParent: taskModel ? taskModel.AppPid : 0
-                    windows: taskModel ? taskModel.WinIdList : []
-                    isGroup: taskModel ? taskModel.IsGroupParent : false
-                    icon: taskModel ? taskModel.decoration : ""
-                    launcherUrl: taskModel ? taskModel.LauncherUrlWithoutIcon : ""
-                    isLauncher: taskModel ? taskModel.IsLauncher : false
-                    isMinimized: taskModel ? taskModel.IsMinimized : false
-                    display: taskModel ? taskModel.display : ""
-                    genericName: taskModel ? taskModel.GenericName : ""
-                    virtualDesktops: taskModel ? taskModel.VirtualDesktops : []
-                    isOnAllVirtualDesktops: taskModel ? taskModel.IsOnAllVirtualDesktops : false
-                    activities: taskModel ? taskModel.Activities : []
-
-                    isPlayingAudio: taskModel ? (taskModel.IsPlayingAudio === true) : false
-                    isMuted: taskModel ? (taskModel.IsMuted === true) : false
-
-                    forceTextMode: tasks.toolTipOpenedByClick !== null && tasks.config.groupedTaskVisualization !== 1
+                    return internalTasksModel.makeModelIndex(parentTask ? parentTask.index : 0, -1);
                 }
+                appName: taskModel ? taskModel.AppName : ""
+                pidParent: taskModel ? taskModel.AppPid : 0
+                windows: taskModel ? taskModel.WinIdList : []
+                isGroup: taskModel ? taskModel.IsGroupParent : false
+                icon: taskModel ? taskModel.decoration : ""
+                launcherUrl: taskModel ? taskModel.LauncherUrlWithoutIcon : ""
+                isLauncher: taskModel ? taskModel.IsLauncher : false
+                isMinimized: taskModel ? taskModel.IsMinimized : false
+                display: taskModel ? taskModel.display : ""
+                genericName: taskModel ? taskModel.GenericName : ""
+                virtualDesktops: taskModel ? taskModel.VirtualDesktops : []
+                isOnAllVirtualDesktops: taskModel ? taskModel.IsOnAllVirtualDesktops : false
+                activities: taskModel ? taskModel.Activities : []
+
+                isPlayingAudio: taskModel ? (taskModel.IsPlayingAudio === true) : false
+                isMuted: taskModel ? (taskModel.IsMuted === true) : false
+
+                forceTextMode: tasks.toolTipOpenedByClick !== null && tasks.config.groupedTaskVisualization !== 1
             }
         }
     }

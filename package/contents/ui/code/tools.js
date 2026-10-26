@@ -19,6 +19,53 @@
 // Can't be `let`, or else QML counterpart won't be able to assign to it.
 var taskManagerInstanceCount = 0;
 
+// Tooltip sub-text lines describing which desktops/activities a task is on.
+// i18nc is passed in because this library has no access to the applet's translation domain.
+function locationSubTextEntries(i18nc, config, virtualDesktopInfo, activityInfo, virtualDesktops, isOnAllVirtualDesktops, activities) {
+    const entries = [];
+    if (!config.showOnlyCurrentDesktop && virtualDesktopInfo.numberOfDesktops > 1) {
+        if (!isOnAllVirtualDesktops && virtualDesktops.length > 0) {
+            const virtualDesktopNameList = virtualDesktops.map(virtualDesktop => {
+                const index = virtualDesktopInfo.desktopIds.indexOf(virtualDesktop);
+                return virtualDesktopInfo.desktopNames[index];
+            });
+
+            entries.push(i18nc("Comma-separated list of desktops", "On %1", virtualDesktopNameList.join(", ")));
+        } else if (isOnAllVirtualDesktops) {
+            entries.push(i18nc("Comma-separated list of desktops", "Pinned to all desktops"));
+        }
+    }
+
+    if (activities.length === 0 && activityInfo.numberOfRunningActivities > 1) {
+        entries.push(i18nc("Which virtual desktop a window is currently on", "Available on all activities"));
+    } else if (activities.length > 0) {
+        const activityNames = activities.filter(activity => activity !== activityInfo.currentActivity).map(activity => activityInfo.activityName(activity)).filter(activityName => activityName !== "");
+        if (config.showOnlyCurrentActivity) {
+            if (activityNames.length > 0) {
+                entries.push(i18nc("Activities a window is currently on (apart from the current one)", "Also available on %1", activityNames.join(", ")));
+            }
+        } else if (activityNames.length > 0) {
+            entries.push(i18nc("Which activities a window is currently on", "Available on %1", activityNames.join(", ")));
+        }
+    }
+    return entries;
+}
+
+// Source-model index of the child of a group task that owns winId, or null.
+// parentTask.index is a row in the filtered view, so the group's source row comes from modelIndex().
+function childIndexForWindow(tasksModel, parentTask, winId) {
+    if (!tasksModel || !parentTask || parentTask.childCount === 0 || winId === undefined)
+        return null;
+    const parentRow = parentTask.modelIndex().row;
+    for (let i = 0; i < parentTask.childCount; ++i) {
+        const idx = tasksModel.makeModelIndex(parentRow, i);
+        const winIds = tasksModel.data(idx, TaskManager.AbstractTasksModel.WinIdList);
+        if (winIds && winIds.includes(winId))
+            return idx;
+    }
+    return null;
+}
+
 function activateNextPrevTask(anchor, next, wheelSkipMinimized, tasks, groupOnly) {
     let taskIndexList = [];
     const activeTaskIndex = tasks.tasksModel.activeTask;

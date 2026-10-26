@@ -125,7 +125,7 @@ ConfigPage {
         }
     
         Label {
-            text: "px"
+            text: Wrappers.i18nc("unit: pixels", "px")
         }
     
         Button {
@@ -332,6 +332,21 @@ ConfigPage {
         to: 1000
         value: appearancePage.cfg_maxButtonLength
         onValueModified: appearancePage.cfg_maxButtonLength = value
+                }
+
+                Label {
+        visible: appearancePage.cfg_iconOnly === 0
+        text: Wrappers.i18n("Maximum lines of text in a button:")
+                }
+                SpinBox {
+        id: maxTextLines
+        visible: appearancePage.cfg_iconOnly === 0
+        from: 0
+        to: 5
+        value: appearancePage.cfg_maxTextLines
+        onValueModified: appearancePage.cfg_maxTextLines = value
+        textFromValue: (value, locale) => value === 0 ? Wrappers.i18nc("Maximum lines of text", "No limit") : value.toString()
+        valueFromText: (text, locale) => parseInt(text) || 0
                 }
     
                 RowLayout {

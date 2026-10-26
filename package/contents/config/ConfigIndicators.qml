@@ -102,7 +102,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorEdgeOffset = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
         }
     
@@ -120,7 +120,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorSize = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
     
             Item { implicitWidth: indicatorsPage.largeSpacing }
@@ -136,7 +136,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorLength = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
         }
     
@@ -167,7 +167,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorActiveSize = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
     
             Item { implicitWidth: indicatorsPage.largeSpacing }
@@ -183,7 +183,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorActiveLength = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
         }
     
@@ -244,7 +244,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorHoverSize = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
     
             Item { implicitWidth: indicatorsPage.largeSpacing }
@@ -260,7 +260,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorHoverLength = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
         }
     
@@ -292,7 +292,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorGroupSize = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
     
             Item { implicitWidth: indicatorsPage.largeSpacing }
@@ -308,7 +308,7 @@ ConfigPage {
                 onValueModified: indicatorsPage.cfg_indicatorGroupLength = value
             }
             Label {
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
         }
     
@@ -388,7 +388,7 @@ ConfigPage {
             }
             Label {
                 visible: indicatorsPage.isLineStyle
-                text: "px"
+                text: Wrappers.i18nc("unit: pixels", "px")
             }
         }
     

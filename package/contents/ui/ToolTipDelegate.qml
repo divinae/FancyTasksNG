@@ -28,6 +28,7 @@ import org.kde.plasma.plasmoid
 import org.kde.taskmanager as TaskManager
 
 import "code/singletones"
+import "code/tools.js" as TaskTools
 
 Loader {
     id: toolTipDelegate
@@ -59,39 +60,14 @@ Loader {
 
     function generateSubText(): string {
         const subTextEntries = [];
-        
+
         // Include Generic Name (Description) for Pinned Apps (no windows) or if relevant
         if (!isWin && genericName.length > 0 && genericName !== calculatedAppName) {
             subTextEntries.push(genericName);
         }
 
-        if (!toolTipDelegate.config.showOnlyCurrentDesktop && virtualDesktopInfo.numberOfDesktops > 1) {
-            if (!isOnAllVirtualDesktops && virtualDesktops.length > 0) {
-                const virtualDesktopNameList = virtualDesktops.map(virtualDesktop => {
-                    const index = virtualDesktopInfo.desktopIds.indexOf(virtualDesktop);
-                    return virtualDesktopInfo.desktopNames[index];
-                });
-
-                subTextEntries.push(Wrappers.i18nc("Comma-separated list of desktops", "On %1", virtualDesktopNameList.join(", ")));
-            } else if (isOnAllVirtualDesktops) {
-                subTextEntries.push(Wrappers.i18nc("Comma-separated list of desktops", "Pinned to all desktops"));
-            }
-        }
-
-        if (activities.length === 0 && activityInfo.numberOfRunningActivities > 1) {
-            subTextEntries.push(Wrappers.i18nc("Which virtual desktop a window is currently on", "Available on all activities"));
-        } else if (activities.length > 0) {
-            const activityNames = activities.filter(activity => activity !== activityInfo.currentActivity).map(activity => activityInfo.activityName(activity)).filter(activityName => activityName !== "");
-            if (toolTipDelegate.config.showOnlyCurrentActivity) {
-                if (activityNames.length > 0) {
-                    subTextEntries.push(Wrappers.i18nc("Activities a window is currently on (apart from the current one)", "Also available on %1", activityNames.join(", ")));
-                }
-            } else if (activityNames.length > 0) {
-                subTextEntries.push(Wrappers.i18nc("Which activities a window is currently on", "Available on %1", activityNames.join(", ")));
-            }
-        }
-
-        return subTextEntries.join("\n");
+        return subTextEntries.concat(TaskTools.locationSubTextEntries(Wrappers.i18nc, toolTipDelegate.config, virtualDesktopInfo, activityInfo,
+            virtualDesktops, isOnAllVirtualDesktops, activities)).join("\n");
     }
 
     property string appName
@@ -136,7 +112,10 @@ Loader {
     }
 
     readonly property bool isVerticalPanel: tasks.vertical
-    readonly property int tooltipInstanceMaximumWidth: Kirigami.Units.gridUnit * 14
+    // Thumbnail tiles are wider than text-only entries, and use a fixed 16:10 box instead of
+    // the screen's aspect ratio (on ultrawide screens that made thumbnails very flat)
+    readonly property int tooltipInstanceMaximumWidth: Kirigami.Units.gridUnit * (showThumbnails ? 15 : 14)
+    readonly property real thumbnailAspectRatio: 16 / 10
 
     property bool forceTextMode: false
 
@@ -203,43 +182,75 @@ Loader {
                 id: singleLayout
                 spacing: Kirigami.Units.smallSpacing
 
-                Row {
-                    Layout.alignment: Qt.AlignHCenter
+                // App name (+ badge) on the left; for windows the desktop/activity info goes on the right
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: singleRoot.tooltipInstanceMaximumWidth
+                    Layout.leftMargin: Kirigami.Units.gridUnit / 2
+                    Layout.rightMargin: Kirigami.Units.gridUnit / 2
                     visible: singleRoot.calculatedAppName.length > 0 && (!singleRoot.isWin || singleRoot.showThumbnails)
-                    opacity: 0.8
                     spacing: Kirigami.Units.smallSpacing
 
-                    PlasmaComponents3.Label {
+                    Kirigami.Heading {
                         id: nameLabel
+                        level: 3
+                        maximumLineCount: 1
+                        textFormat: Text.PlainText
                         text: singleRoot.calculatedAppName
-                        font.bold: true
                         elide: Text.ElideRight
-                        width: Math.min(implicitWidth, singleRoot.tooltipInstanceMaximumWidth - (badge.visible ? badge.width + parent.spacing : 0) - Kirigami.Units.gridUnit)
+                        Layout.maximumWidth: implicitWidth
+                        Layout.fillWidth: true
                     }
 
-                    Badge {
-                        id: badge
+                    // Badge sizes its own width from its height; keep it out of the layout's control
+                    Item {
+                        Layout.alignment: Qt.AlignVCenter
+                        implicitWidth: badge.width
+                        implicitHeight: badge.height
                         visible: singleRoot.config.showBadges && (singleRoot.parentTask ? singleRoot.parentTask.badgeVisible : false)
-                        appId: singleRoot.appId
-                        isUrgent: (singleRoot.config.badgeHighlightNew && singleRoot.parentTask) ? singleRoot.parentTask.hasUnseenNotifications : false
-                        height: Math.round(Kirigami.Units.gridUnit * 0.85)
-                        isRound: false
-                        fontPointSize: 8
-                        maxNumber: 0
+
+                        Badge {
+                            id: badge
+                            anchors.verticalCenter: parent.verticalCenter
+                            appId: singleRoot.appId
+                            isUrgent: (singleRoot.config.badgeHighlightNew && singleRoot.parentTask) ? singleRoot.parentTask.hasUnseenNotifications : false
+                            height: Math.round(Kirigami.Units.gridUnit * 0.85)
+                            isRound: false
+                            fontPointSize: 8
+                            maxNumber: 0
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    PlasmaComponents3.Label {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: implicitWidth
+                        horizontalAlignment: Text.AlignRight
+                        text: singleRoot.isWin ? toolTipDelegate.generateSubText().replace(/\n/g, " · ") : ""
+                        elide: Text.ElideLeft
+                        maximumLineCount: 1
+                        visible: text.length > 0
+                        opacity: 0.6
+                        textFormat: Text.PlainText
                     }
                 }
 
             PlasmaComponents3.Label {
-                Layout.alignment: Qt.AlignHCenter
+                Layout.alignment: Qt.AlignLeft
                 Layout.fillWidth: true
                 Layout.leftMargin: Kirigami.Units.gridUnit / 2
                 Layout.rightMargin: Kirigami.Units.gridUnit / 2
                 Layout.maximumWidth: singleRoot.tooltipInstanceMaximumWidth - Layout.leftMargin - Layout.rightMargin
-                horizontalAlignment: Text.AlignHCenter
+                horizontalAlignment: Text.AlignLeft
                 
                 text: toolTipDelegate.generateSubText()
                 wrapMode: Text.Wrap
-                visible: text.length > 0 && (!singleRoot.isWin || singleRoot.showThumbnails)
+                // Windows show this on the title row instead
+                visible: text.length > 0 && !singleRoot.isWin
                 opacity: 0.6
                 textFormat: Text.PlainText
             }
@@ -339,47 +350,62 @@ Loader {
                      return Math.ceil(count * groupRoot.tooltipInstanceMaximumWidth + Math.max(0, count - 1) * Kirigami.Units.smallSpacing);
                 }
                 
-                Row {
-                    Layout.alignment: Qt.AlignHCenter
+                // App name (+ badge) on the left, desktop/activity info on the right
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: groupLayout.contentTargetWidth
+                    Layout.leftMargin: Kirigami.Units.gridUnit / 2
+                    Layout.rightMargin: Kirigami.Units.gridUnit / 2
                     visible: groupRoot.calculatedAppName.length > 0 && groupRoot.showThumbnails
-                    opacity: 0.8
                     spacing: Kirigami.Units.smallSpacing
 
-                    PlasmaComponents3.Label {
+                    Kirigami.Heading {
                         id: groupNameLabel
+                        level: 3
+                        maximumLineCount: 1
+                        textFormat: Text.PlainText
                         text: groupRoot.calculatedAppName
-                        font.bold: true
                         elide: Text.ElideRight
-                        width: Math.min(implicitWidth, groupLayout.contentTargetWidth - (groupBadge.visible ? groupBadge.width + parent.spacing : 0) - Kirigami.Units.gridUnit)
+                        Layout.maximumWidth: implicitWidth
+                        Layout.fillWidth: true
                     }
 
-                    Badge {
-                        id: groupBadge
+                    // Badge sizes its own width from its height; keep it out of the layout's control
+                    Item {
+                        Layout.alignment: Qt.AlignVCenter
+                        implicitWidth: groupBadge.width
+                        implicitHeight: groupBadge.height
                         visible: groupRoot.config.showBadges && (groupRoot.parentTask ? groupRoot.parentTask.badgeVisible : false)
-                        appId: groupRoot.appId
-                        isUrgent: (groupRoot.config.badgeHighlightNew && groupRoot.parentTask) ? groupRoot.parentTask.hasUnseenNotifications : false
-                        height: Math.round(Kirigami.Units.gridUnit * 0.85)
-                        isRound: false
-                        fontPointSize: 8
-                        maxNumber: 0
+
+                        Badge {
+                            id: groupBadge
+                            anchors.verticalCenter: parent.verticalCenter
+                            appId: groupRoot.appId
+                            isUrgent: (groupRoot.config.badgeHighlightNew && groupRoot.parentTask) ? groupRoot.parentTask.hasUnseenNotifications : false
+                            height: Math.round(Kirigami.Units.gridUnit * 0.85)
+                            isRound: false
+                            fontPointSize: 8
+                            maxNumber: 0
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    PlasmaComponents3.Label {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: implicitWidth
+                        horizontalAlignment: Text.AlignRight
+                        text: toolTipDelegate.generateSubText().replace(/\n/g, " · ")
+                        elide: Text.ElideLeft
+                        maximumLineCount: 1
+                        visible: text.length > 0
+                        opacity: 0.6
+                        textFormat: Text.PlainText
                     }
                 }
-
-            PlasmaComponents3.Label {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: true
-                Layout.leftMargin: Kirigami.Units.gridUnit / 2
-                Layout.rightMargin: Kirigami.Units.gridUnit / 2
-                Layout.maximumWidth: groupLayout.contentTargetWidth - Layout.leftMargin - Layout.rightMargin
-                horizontalAlignment: Text.AlignHCenter
-                
-                text: toolTipDelegate.generateSubText()
-                font: Kirigami.Theme.smallFont
-                elide: Text.ElideRight
-                visible: groupRoot.showThumbnails && text.length > 0
-                opacity: 0.6
-                textFormat: Text.PlainText
-            }
 
             PlasmaComponents3.ScrollView {
                 id: scrollView
@@ -436,15 +462,18 @@ Loader {
 
                     readonly property int safeCount: groupRoot.isWin ? groupRoot.windows.length : count
 
-                    readonly property real screenRatio: Screen.width / Screen.height
                     
                     // If thumbnails disabled -> height is 0
                     readonly property int instanceThumbHeight: groupRoot.showThumbnails ? 
-                        Math.round(groupRoot.tooltipInstanceMaximumWidth / screenRatio) : 0
+                        Math.round(groupRoot.tooltipInstanceMaximumWidth / toolTipDelegate.thumbnailAspectRatio) : 0
                     
-                    // Reduced padding for overlay style (was * 3)
+                    // Tallest delegate seen so far: a tile is the thumbnail plus its header and
+                    // margins, so the thumbnail height alone would cut the bottom off
+                    property real delegateHeight: 0
+
                     // Fallback to 2 grid units for Text Mode items
-                    readonly property real singleItemHeight: instanceThumbHeight > 0 ? instanceThumbHeight : Kirigami.Units.gridUnit * 2
+                    readonly property real singleItemHeight: Math.max(delegateHeight,
+                        instanceThumbHeight > 0 ? instanceThumbHeight : Kirigami.Units.gridUnit * 2)
 
 
                     
@@ -455,13 +484,18 @@ Loader {
 
                     model: groupRoot.tasksModel
                     rootIndex: groupRoot.rootIndex
-                    onRootIndexChanged: groupToolTipListView.positionViewAtBeginning()
+                    onRootIndexChanged: {
+                        delegateHeight = 0;
+                        groupToolTipListView.positionViewAtBeginning();
+                    }
 
                     delegate: ToolTipInstance {
                         required property var model
                         
                         width: groupRoot.tooltipInstanceMaximumWidth
                         height: implicitHeight
+                        onImplicitHeightChanged: delegateModel.delegateHeight = Math.max(delegateModel.delegateHeight, implicitHeight)
+                        Component.onCompleted: delegateModel.delegateHeight = Math.max(delegateModel.delegateHeight, implicitHeight)
                         
                         index: index 
                         

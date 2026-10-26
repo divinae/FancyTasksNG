@@ -36,17 +36,7 @@ Item {
             return;
         }
 
-        // Try matching by AppId, then AppPid, then AppName
-        let streams = pa.streamsForAppId(taskItem.model.AppId);
-        if (!streams.length) {
-            streams = pa.streamsForPid(taskItem.model.AppPid);
-            
-            if (!streams.length) {
-                 streams = pa.streamsForAppName(taskItem.model.AppName);
-            }
-        }
-
-        audioStreams = streams;
+        audioStreams = pa.streamsForApp(taskItem.model.AppId, taskItem.model.AppPid, taskItem.model.AppName);
     }
 
     // Toggle mute state for all application streams

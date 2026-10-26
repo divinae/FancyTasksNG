@@ -14,6 +14,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import org.kde.taskmanager as TaskManager
 
+import "code/tools.js" as TaskTools
+
 MouseArea {
     id: rootMouseArea
     required property var modelIndex
@@ -59,27 +61,7 @@ MouseArea {
     }
 
     function findMatchingTaskIndex() {
-        // Function to find the child task index that owns this winId
-        if (!tasksModel || rootTask.childCount === 0) return modelIndex;
-
-        // Iterate through children
-        // We assume rootTask.index is the row of the group parent
-        const parentRow = rootTask.index;
-        
-        for (let i = 0; i < rootTask.childCount; ++i) {
-            // Create index for child i
-            // Assuming makeModelIndex(parentRow, childRow) convention used in ToolTipDelegate
-            const idx = tasksModel.makeModelIndex(parentRow, i);
-            
-            // Get WinIdList for this child
-            const winIds = tasksModel.data(idx, TaskManager.AbstractTasksModel.WinIdList);
-            
-            if (winIds && winIds.includes(winId)) {
-                return idx;
-            }
-        }
-        
-        return modelIndex;
+        return TaskTools.childIndexForWindow(tasksModel, rootTask, winId) || modelIndex;
     }
 
     property var toolTipDelegate

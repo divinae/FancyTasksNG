@@ -86,7 +86,7 @@ Kirigami.Page {
     property bool cfg_taskHoverEffectDefault: true
     property int cfg_taskHoverEffectStyle: 0
     property int cfg_taskHoverEffectStyleDefault: 0
-    property int cfg_maxTextLines: 1
+    property int cfg_maxTextLines: 0
     property int cfg_maxTextLinesDefault: 0
     property bool cfg_minimizeActiveTaskOnClick: true
     property bool cfg_minimizeActiveTaskOnClickDefault: true
@@ -117,11 +117,13 @@ Kirigami.Page {
     property int cfg_sortingStrategy: 0
     property int cfg_sortingStrategyDefault: 0
 
-    property int cfg_mediaControlsLocation: 0
-    property int cfg_mediaControlsLocationDefault: 0
+    property int cfg_mediaControlsLocation: 1
+    property int cfg_mediaControlsLocationDefault: 1
 
     property bool cfg_groupPopups: true
     property bool cfg_groupPopupsDefault: true
+    property bool cfg_onlyGroupWhenFull: false
+    property bool cfg_onlyGroupWhenFullDefault: false
 
     property var cfg_groupingAppIdBlacklist: []
     property var cfg_groupingAppIdBlacklistDefault: []

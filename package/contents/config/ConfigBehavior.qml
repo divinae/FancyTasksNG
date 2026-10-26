@@ -62,6 +62,49 @@ ConfigPage {
                 checked: behaviorPage.cfg_groupIconEnabled
                 onToggled: behaviorPage.cfg_groupIconEnabled = checked
             }
+
+            CheckBox {
+                visible: !groupDisabled.checked
+                enabled: behaviorPage.cfg_iconOnly === 0
+                text: Wrappers.i18n("Only when the task manager is full")
+                checked: behaviorPage.cfg_onlyGroupWhenFull
+                onToggled: behaviorPage.cfg_onlyGroupWhenFull = checked
+            }
+
+            // Apps excluded with "Allow this program to be grouped" in the task context menu
+            Label {
+                visible: !groupDisabled.checked && (behaviorPage.cfg_groupingAppIdBlacklist || []).length > 0
+                Layout.topMargin: behaviorPage.smallSpacing
+                text: Wrappers.i18n("Never grouped:")
+            }
+
+            Repeater {
+                model: groupDisabled.checked ? [] : (behaviorPage.cfg_groupingAppIdBlacklist || [])
+
+                delegate: RowLayout {
+                    id: blockedApp
+                    required property string modelData
+                    Layout.leftMargin: behaviorPage.gridUnit
+
+                    Kirigami.Icon {
+                        source: blockedApp.modelData
+                        fallback: "application-x-executable"
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: Kirigami.Units.iconSizes.small
+                    }
+                    Label {
+                        text: blockedApp.modelData
+                    }
+                    ToolButton {
+                        icon.name: "edit-delete-remove"
+                        text: Wrappers.i18n("Allow grouping")
+                        display: AbstractButton.IconOnly
+                        ToolTip.visible: hovered
+                        ToolTip.text: text
+                        onClicked: behaviorPage.allowGrouping(blockedApp.modelData)
+                    }
+                }
+            }
         }
     
         Item {
@@ -424,5 +467,14 @@ ConfigPage {
             }
             ButtonGroup.group: reverseModeRadioButtonGroup
         }
+    }
+
+    // Remove an app from both grouping blocklists (the context menu adds it to both)
+    function allowGrouping(appId) {
+        behaviorPage.cfg_groupingAppIdBlacklist = (behaviorPage.cfg_groupingAppIdBlacklist || []).filter(id => id !== appId);
+        // Compare the launcher's desktop file name (e.g. applications:org.kde.konsole.desktop
+        // or file:///.../org.kde.konsole.desktop) with the app id, not a substring of the URL
+        const launcherId = url => decodeURIComponent(String(url)).replace(/^[a-z]+:(\/\/)?/, "").split("/").pop().replace(/\.desktop$/, "");
+        behaviorPage.cfg_groupingLauncherUrlBlacklist = (behaviorPage.cfg_groupingLauncherUrlBlacklist || []).filter(url => launcherId(url) !== appId);
     }
 }

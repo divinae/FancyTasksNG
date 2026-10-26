@@ -78,6 +78,16 @@ QtObject {
         onObjectRemoved: (index, object) => audioStreamManager.streamsChanged()
     }
 
+    // Streams of an app: by portal app id (sandboxed apps), then process id, then app name
+    function streamsForApp(appId: string, pid: int, appName: string): var {
+        let streams = streamsForAppId(String(appId || "").replace(/\.desktop$/, ""));
+        if (!streams.length)
+            streams = streamsForPid(pid);
+        if (!streams.length)
+            streams = streamsForAppName(appName);
+        return streams;
+    }
+
     function streamsForAppId(appId: string): var {
         if (!appId) return [];
         return findStreams(stream => stream.portalAppId === appId);

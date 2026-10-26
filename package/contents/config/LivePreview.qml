@@ -272,7 +272,7 @@ Item {
                         }
                     }
                     Label {
-                        text: "px"
+                        text: Wrappers.i18nc("unit: pixels", "px")
                         opacity: 0.5
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
                     }

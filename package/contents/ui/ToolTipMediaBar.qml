@@ -4,6 +4,7 @@
 */
 
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
@@ -17,7 +18,7 @@ Item {
     required property var mediaController
 
     width: parent.width
-    height: Kirigami.Units.gridUnit * 1.4
+    height: controlsRow.height + (canSeek ? seekSlider.implicitHeight : 0)
 
     readonly property bool hasPlayer: mediaController ? mediaController.showPlayerControls : false
     readonly property bool hasVolume: mediaController ? mediaController.showVolumeControls : false
@@ -29,9 +30,15 @@ Item {
     readonly property var streamMgr: mediaController ? mediaController.audioStreamManager : null
     readonly property real appVolume: mediaController ? mediaController.appVolume : 0
     readonly property bool muted: mediaController ? mediaController.muted : false
+    // Seek bar is shown for players that report a track length and accept seeking
+    readonly property bool canSeek: hasPlayer && !!player && player.canSeek && player.length > 0
 
     RowLayout {
-        anchors.fill: parent
+        id: controlsRow
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Kirigami.Units.gridUnit * 1.4
         anchors.leftMargin: Kirigami.Units.smallSpacing
         anchors.rightMargin: Kirigami.Units.smallSpacing
         spacing: Kirigami.Units.smallSpacing
@@ -98,6 +105,17 @@ Item {
             Layout.preferredHeight: songText.height
             implicitWidth: songText.implicitWidth
 
+            // Fade the right edge to transparent so users know the text continues.
+            // A mask instead of a background-colored gradient keeps it correct on a translucent theme frame.
+            readonly property bool overflowing: state === "" && songText.implicitWidth > width
+            layer.enabled: overflowing
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: songFadeMask
+                maskThresholdMin: 0.0
+                maskSpreadAtMin: 1.0
+            }
+
             textItem: PlasmaComponents3.Label {
                 id: songText
                 maximumLineCount: 1
@@ -116,16 +134,20 @@ Item {
                 }
             }
 
-            // Fade hint on the right edge so users know the text continues
-            Rectangle {
-                visible: songTextWrapper.state === "" && songText.implicitWidth > songTextWrapper.width
-                anchors.right: parent.right
-                width: Kirigami.Units.gridUnit * 1.5
-                height: parent.height
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: "transparent" }
-                    GradientStop { position: 1.0; color: Kirigami.Theme.backgroundColor }
+            Item {
+                id: songFadeMask
+                anchors.fill: parent
+                visible: false
+                layer.enabled: true
+
+                Rectangle {
+                    anchors.fill: parent
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: "white" }
+                        GradientStop { position: Math.max(0, 1 - Kirigami.Units.gridUnit * 1.5 / Math.max(1, songTextWrapper.width)); color: "white" }
+                        GradientStop { position: 1.0; color: "transparent" }
+                    }
                 }
             }
         }
@@ -190,6 +212,8 @@ Item {
             Item {
                 id: volumePopup
                 visible: barRoot.showSlider && barRoot.hasVolume
+                Kirigami.Theme.colorSet: Kirigami.Theme.Complementary
+                Kirigami.Theme.inherit: false
                 width: Kirigami.Units.gridUnit * 1.7
                 height: Kirigami.Units.gridUnit * 6.5
                 
@@ -226,7 +250,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     color: Qt.rgba(0, 0, 0, 0.55)
-                    radius: Kirigami.Units.smallSpacing
+                    radius: Kirigami.Units.cornerRadius
                 }
 
                 ColumnLayout {
@@ -239,9 +263,6 @@ Item {
                             let volPercent = Math.round(barRoot.appVolume / 65536 * 100);
                             return volPercent + "%";
                         }
-                        color: "white"
-                        font.bold: false
-                        opacity: 0.85
                         Layout.alignment: Qt.AlignHCenter
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
@@ -280,50 +301,7 @@ Item {
                             }
                         }
 
-                        // Custom handle to make it elegant and prevent clunky look
-                        handle: Rectangle {
-                            id: handleRect
-                            x: volumeSlider.leftPadding + (volumeSlider.availableWidth - width) / 2
-                            y: volumeSlider.topPadding + volumeSlider.visualPosition * (volumeSlider.availableHeight - height)
-                            
-                            // Dynamic sizing: 8px default, 12px on hover/press
-                            width: handleHover.hovered || volumeSlider.pressed ? 12 : 8
-                            height: width
-                            radius: width / 2
-                            
-                            color: volumeSlider.pressed ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                            border.color: Kirigami.Theme.backgroundColor
-                            border.width: 1
-                            
-                            HoverHandler {
-                                id: handleHover
-                            }
-                            
-                            Behavior on width {
-                                NumberAnimation {
-                                    duration: 120
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-                        }
                         
-                        // Custom background track
-                        background: Rectangle {
-                            x: volumeSlider.leftPadding + (volumeSlider.availableWidth - width) / 2
-                            y: volumeSlider.topPadding
-                            width: 3
-                            height: volumeSlider.availableHeight
-                            radius: 1.5
-                            color: Qt.rgba(255, 255, 255, 0.15)
-                            
-                            Rectangle {
-                                width: parent.width
-                                height: parent.height - volumeSlider.visualPosition * parent.height
-                                y: parent.height - height
-                                color: Kirigami.Theme.highlightColor
-                                radius: 1.5
-                            }
-                        }
 
                      }
                 }
@@ -395,46 +373,13 @@ Item {
                         barRoot.mediaController.setVolume(value);
                 }
 
-                handle: Rectangle {
-                    x: inlineVolumeSlider.leftPadding + inlineVolumeSlider.visualPosition * (inlineVolumeSlider.availableWidth - width)
-                    y: inlineVolumeSlider.topPadding + (inlineVolumeSlider.availableHeight - height) / 2
 
-                    width: inlineHandleHover.hovered || inlineVolumeSlider.pressed ? 10 : 6
-                    height: width
-                    radius: width / 2
-
-                    color: inlineVolumeSlider.pressed ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
-                    border.color: Kirigami.Theme.backgroundColor
-                    border.width: 1
-
-                    HoverHandler { id: inlineHandleHover }
-
-                    Behavior on width {
-                        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-                    }
-                }
-
-                background: Rectangle {
-                    x: inlineVolumeSlider.leftPadding
-                    y: inlineVolumeSlider.topPadding + (inlineVolumeSlider.availableHeight - height) / 2
-                    width: inlineVolumeSlider.availableWidth
-                    height: 2
-                    radius: 1
-                    color: Qt.rgba(255, 255, 255, 0.15)
-
-                    Rectangle {
-                        width: inlineVolumeSlider.visualPosition * parent.width
-                        height: parent.height
-                        color: Kirigami.Theme.highlightColor
-                        radius: 1
-                    }
-                }
             }
 
             PlasmaComponents3.Label {
                 text: Math.round(inlineVolumeSlider.value / inlineVolumeSlider.to * 100) + "%"
                 Layout.minimumWidth: Kirigami.Units.gridUnit * 1.5
-                font.pixelSize: 10
+                font: Kirigami.Theme.smallFont
                 horizontalAlignment: Text.AlignHCenter
             }
 
@@ -458,6 +403,62 @@ Item {
 
     // Hover State Logic for vertical slider
     property bool showSlider: volumeButtonHover.hovered || sliderHover.hovered || hoverTimer.running
+
+    PlasmaComponents3.Slider {
+        id: seekSlider
+        visible: barRoot.canSeek
+        anchors.top: controlsRow.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: Kirigami.Units.smallSpacing
+        anchors.rightMargin: Kirigami.Units.smallSpacing
+
+        // MPRIS position and length are in microseconds
+        from: 0
+        to: barRoot.player ? barRoot.player.length : 0
+
+        Binding on value {
+            value: barRoot.player ? barRoot.player.position : 0
+            when: !seekSlider.pressed
+            restoreMode: Binding.RestoreNone
+        }
+
+        // Don't let the wheel scrub through the track by accident
+        WheelHandler {
+            acceptedButtons: Qt.NoButton
+            onWheel: event => event.accepted = true
+        }
+
+        onPressedChanged: {
+            if (!pressed && barRoot.player)
+                barRoot.player.Seek(Math.round(value - barRoot.estimatedPosition()));
+        }
+    }
+
+    // player.position is only refreshed when polled, so extrapolate it from the time of the
+    // last update while playing; Seek() is relative and needs the real current position
+    property double positionStamp: Date.now()
+    Connections {
+        target: barRoot.player
+        ignoreUnknownSignals: true
+        function onPositionChanged() {
+            barRoot.positionStamp = Date.now();
+        }
+    }
+    function estimatedPosition(): real {
+        const player = barRoot.player;
+        if (player.playbackStatus !== Mpris.PlaybackStatus.Playing)
+            return player.position;
+        return player.position + (Date.now() - positionStamp) * 1000 * (player.rate || 1);
+    }
+
+    // The player only reports position on changes; poll it while the bar is visible and playing
+    Timer {
+        interval: 1000
+        repeat: true
+        running: barRoot.canSeek && barRoot.visible && barRoot.player.playbackStatus === Mpris.PlaybackStatus.Playing
+        onTriggered: barRoot.player.updatePosition()
+    }
 
     onShowSliderChanged: {
         if (!showSlider) {

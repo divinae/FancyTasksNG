@@ -130,7 +130,7 @@ Item {
 
     SequentialAnimation {
         id: attentionAnimation
-        running: iconBox._taskHasModel && iconBox.taskItem.model.IsDemandingAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
+        running: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
         loops: Animation.Infinite
         onRunningChanged: if (!running) attentionTranslate.y = 0
 

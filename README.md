@@ -46,6 +46,7 @@ For a complete list of features and version history, refer to the [CHANGELOG](CH
 ## Requirements
 
 - **KDE Plasma 6.5** (or newer)
+- **python3** with the **dbus-python** and **PyGObject** modules, for jump lists, recent documents, browser history, notification badges and configuration export/import (packages: `python-dbus` and `python-gobject` on Arch, `python3-dbus` and `python3-gi` on Debian/Ubuntu, `python3-dbus` and `python3-gobject` on Fedora)
 
 ## How to install
 
@@ -97,9 +98,9 @@ make uninstall
 ```
 
 ## Contributing
-Found a bug? Have a great idea for a feature? Want to help translate the widget into your language? All contributions are welcome! 
+Found a bug? Have a great idea for a feature? All contributions are welcome! 
 
-Head over to the [GitHub Issues tracker](https://github.com/daydve/FancyTasksNG/issues) to report bugs or request features. If you want to help with translations, you'll find the `.po` files in the `tools/translate/` directory.
+Head over to the [GitHub Issues tracker](https://github.com/daydve/FancyTasksNG/issues) to report bugs or request features.
 
 ## Acknowledgements
 

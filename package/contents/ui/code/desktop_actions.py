@@ -17,7 +17,6 @@ Each recentDocs item: {"name": str, "url": str, "icon": str}
 import configparser
 import hashlib
 import json
-import mimetypes
 import os
 import re
 import shlex
@@ -35,7 +34,7 @@ import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 KACTIVITIES_DB = Path.home() / ".local/share/kactivitymanagerd/resources/database"
 DESKTOP_DIRS = [
@@ -220,9 +219,10 @@ def get_recent_documents(desktop_path):
         return docs
 
     try:
-        conn = sqlite3.connect(str(KACTIVITIES_DB))
+        # Read-only with a timeout: kactivitymanagerd may be writing to it
+        conn = sqlite3.connect(f"file:{quote(str(KACTIVITIES_DB))}?mode=ro", uri=True, timeout=2)
         cur = conn.cursor()
-        cur.execute(f"""
+        cur.execute("""
             SELECT re.targettedResource, ri.mimetype, MAX(re.start) as lastUpdate
             FROM ResourceEvent re
             LEFT JOIN ResourceInfo ri ON re.targettedResource = ri.targettedResource
@@ -244,7 +244,7 @@ def get_recent_documents(desktop_path):
             # Parse file path
             file_path = resource
             if file_path.startswith("file://"):
-                file_path = file_path[7:]
+                file_path = unquote(file_path[7:])
             
             # Kickoff typically checks if local files exist, but we still allow valid KDE URLs
             if file_path.startswith("/"):
@@ -279,7 +279,7 @@ def get_recent_documents(desktop_path):
 
             if file_path not in seen:
                 seen.add(file_path)
-                url = f"file://{file_path}" if file_path.startswith("/") else file_path
+                url = f"file://{quote(file_path)}" if file_path.startswith("/") else file_path
                 docs.append({
                     "name": name,
                     "url": url,
@@ -323,7 +323,7 @@ def find_active_db_from_proc(db_name, app_pid=0):
                 for fd in fd_dir.iterdir():
                     try:
                         target = os.readlink(fd)
-                        if db_name in target and os.path.isfile(target):
+                        if os.path.basename(target) == db_name and os.path.isfile(target):
                             return Path(target)
                     except (OSError, PermissionError):
                         continue
@@ -332,6 +332,22 @@ def find_active_db_from_proc(db_name, app_pid=0):
     except Exception as e:
         print(f"desktop_actions: proc scan error: {e}", file=sys.stderr)
     return None
+
+
+def snapshot_sqlite(db_path, temp_db):
+    """Copy a live SQLite DB plus its -wal sidecar so uncheckpointed rows are included."""
+    shutil.copy2(db_path, temp_db)
+    wal = Path(f"{db_path}-wal")
+    if wal.is_file():
+        shutil.copy2(wal, f"{temp_db}-wal")
+
+
+def remove_sqlite_snapshot(temp_db):
+    for path in (Path(temp_db), Path(f"{temp_db}-wal"), Path(f"{temp_db}-shm")):
+        try:
+            path.unlink()
+        except OSError:
+            pass
 
 
 def extract_favicons(history_items, favicons_db_path, browser_type):
@@ -367,7 +383,7 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
     temp_db = Path(temp_path)
 
     try:
-        shutil.copy2(favicons_db_path, temp_db)
+        snapshot_sqlite(favicons_db_path, temp_db)
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
 
@@ -415,11 +431,7 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
     except Exception as e:
         print(f"desktop_actions: extract_favicons error: {e}", file=sys.stderr)
     finally:
-        if temp_db.exists():
-            try:
-                temp_db.unlink()
-            except OSError:
-                pass
+        remove_sqlite_snapshot(temp_db)
 
     return history_items
 
@@ -535,8 +547,30 @@ def get_chromium_recent(browser_name, limit=10, app_pid=0):
     return extract_favicons(history, db_path.parent / "Favicons", "chromium")
 
 
+# (db path, query, limit) -> (file signature, rows); avoids re-copying an unchanged history DB
+_history_cache = {}
+
+
+def sqlite_signature(db_path):
+    """mtime/size of a DB and its -wal file; changes whenever the browser writes history."""
+    sig = []
+    for path in (Path(db_path), Path(f"{db_path}-wal")):
+        try:
+            st = path.stat()
+            sig.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append(None)
+    return tuple(sig)
+
+
 def fetch_sqlite_history(db_path, query, temp_name, limit=10):
     """Generic helper to fetch history from a SQLite DB using a temporary copy."""
+    cache_key = (str(db_path), query, limit)
+    signature = sqlite_signature(db_path)
+    cached = _history_cache.get(cache_key)
+    if cached and cached[0] == signature:
+        return [dict(item) for item in cached[1]]
+
     docs = []
     # Use tempfile to avoid collisions and permission issues in /tmp
     fd, temp_path = tempfile.mkstemp(prefix=temp_name)
@@ -544,7 +578,7 @@ def fetch_sqlite_history(db_path, query, temp_name, limit=10):
     temp_db = Path(temp_path)
     
     try:
-        shutil.copy2(db_path, temp_db)
+        snapshot_sqlite(db_path, temp_db)
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
         cursor.execute(query, (limit * 3,))
@@ -560,14 +594,11 @@ def fetch_sqlite_history(db_path, query, temp_name, limit=10):
             docs.append({"name": title, "url": url, "icon": "internet-services", "mimeType": "text/html"})
             if len(docs) >= limit: break
         conn.close()
+        _history_cache[cache_key] = (signature, [dict(item) for item in docs])
     except Exception as e:
         print(f"desktop_actions: fetch_history error ({db_path}): {e}", file=sys.stderr)
     finally:
-        if temp_db.exists():
-            try:
-                temp_db.unlink()
-            except OSError:
-                pass
+        remove_sqlite_snapshot(temp_db)
     return docs
 
 
@@ -673,8 +704,7 @@ def get_kde_places():
                     "url": href,
                     "icon": icon
                 })
-    except Exception as e:
-        # print(f"XBEL error: {e}", file=sys.stderr)
+    except Exception:
         pass
 
     return places
@@ -693,9 +723,13 @@ class DesktopActionsService(dbus.service.Object):
     def __init__(self):
         try:
             self.bus = dbus.SessionBus()
-            self.bus_name = dbus.service.BusName('io.github.daydve.fancytasksng.DesktopActions', bus=self.bus)
+            self.bus_name = dbus.service.BusName('io.github.daydve.fancytasksng.DesktopActions', bus=self.bus, do_not_queue=True)
             dbus.service.Object.__init__(self, self.bus_name, '/DesktopActions')
             print("DesktopActionsService ready", flush=True)
+        except dbus.exceptions.NameExistsException:
+            # Another task manager instance already runs the service; it serves everyone.
+            print("DesktopActionsService already running", flush=True)
+            sys.exit(0)
         except Exception as e:
             print(f"DesktopActionsService error: {e}", file=sys.stderr)
             sys.exit(1)
@@ -707,8 +741,8 @@ class DesktopActionsService(dbus.service.Object):
         
         browser_history = []
         if desktop_path and show_history:
-            d_lower = desktop_path.lower()
-            if "firefox" in d_lower or "mozilla" in d_lower or "ffpwa" in d_lower:
+            d_lower = os.path.basename(desktop_path).lower()
+            if "firefox" in d_lower or "ffpwa" in d_lower:
                 browser_history = get_firefox_recent(limit, app_pid)
             elif "chrome" in d_lower:
                 browser_history = get_chromium_recent("chrome", limit, app_pid)
@@ -762,7 +796,7 @@ class DesktopActionsService(dbus.service.Object):
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='')
     def Execute(self, exec_cmd):
         try:
-            subprocess.Popen(exec_cmd, shell=True, start_new_session=True)
+            subprocess.Popen(expand_exec(exec_cmd), start_new_session=True)
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
@@ -777,9 +811,10 @@ class DesktopActionsService(dbus.service.Object):
 
     @dbus.service.method('io.github.daydve.fancytasksng.Config', in_signature='s', out_signature='s')
     def ImportConfig(self, path):
+        # "OK:" prefix so file contents can't be mistaken for an error or a D-Bus failure
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return f.read()
+            with open(path, 'r', encoding='utf-8-sig') as f:
+                return "OK:" + f.read()
         except Exception as e:
             return f"ERROR: {e}"
 
@@ -795,16 +830,52 @@ class DesktopActionsService(dbus.service.Object):
                     if url.lower().startswith("http") and "--protocol" in exec_cmd:
                         exec_cmd = exec_cmd.replace("--protocol", "--url")
                     
-                    # Replace %u, %U, %f, %F with the actual URL
-                    clean_exec = re.sub(r'%[uUfF]', url, exec_cmd)
-                    if url not in clean_exec:
-                        clean_exec += f" {url}"
-                    subprocess.Popen(shlex.split(clean_exec))
+                    subprocess.Popen(expand_exec(exec_cmd, url), start_new_session=True)
                     return
             
             # Fallback to default browser
             subprocess.Popen(['xdg-open', url])
         except Exception: pass
+
+
+def expand_exec(exec_cmd, url=None):
+    """Split a desktop entry Exec line into argv and expand its field codes.
+
+    The URL is inserted as a single argument (never re-parsed), %f/%F get a local
+    path for file:// URLs, and field codes we don't support (%i, %c, %k, ...) are dropped.
+    """
+    target = url
+    if url and url.startswith("file://"):
+        local_path = unquote(urlparse(url).path)
+    else:
+        local_path = url
+
+    argv = []
+    used_url = False
+    for token in shlex.split(exec_cmd):
+        if token in ("%u", "%U", "%f", "%F"):
+            if url:
+                argv.append(target if token in ("%u", "%U") else local_path)
+                used_url = True
+            continue
+
+        def field(m):
+            nonlocal used_url
+            code = m.group(1)
+            if code == "%":
+                return "%"
+            if url and code in "uUfF":
+                used_url = True
+                return target if code in "uU" else local_path
+            return ""
+
+        token = re.sub(r"%(.)", field, token)
+        if token:
+            argv.append(token)
+
+    if url and not used_url:
+        argv.append(url)
+    return argv
 
 
 def get_desktop_exec(desktop_path):
@@ -820,7 +891,7 @@ def get_desktop_exec(desktop_path):
 def main():
     set_pdeathsig()
     DBusGMainLoop(set_as_default=True)
-    service = DesktopActionsService()
+    _service = DesktopActionsService()  # keep a reference for the lifetime of the loop
     loop = GLib.MainLoop()
     try:
         loop.run()

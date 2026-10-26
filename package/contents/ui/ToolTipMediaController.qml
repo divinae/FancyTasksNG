@@ -99,13 +99,7 @@ Item {
             return;
         }
 
-        // Check appid first for app using portal
-        var streams = pa.streamsForAppId(appId.replace(/\.desktop/, ''));
-        if (!streams.length) {
-            streams = pa.streamsForPid(appPid);
-        }
-
-
+        var streams = pa.streamsForApp(appId, appPid, toolTipDelegate.appName);
 
         if (streams.length > 0) {
             // Only update cachedVolume from PA when not actively changing volume.

@@ -85,28 +85,68 @@ PlasmaExtras.Menu {
         return menu.tasksModel.data(modelIndex, modelProp);
     }
 
+    // Other windows of this task's app shown in this task manager (including ones inside groups),
+    // as source-model indexes. Windows hidden by the screen/desktop/activity/minimized filters
+    // are skipped, so they are never closed without being visible.
+    property var _otherAppWindows: []
+
+    function otherAppWindows(): var {
+        const appId = get(atm.AppId);
+        const ownWinIds = get(atm.WinIdList) || [];
+        const result = [];
+        const viewModel = tasksRoot.effectiveTasksModel;
+        if (!appId || !viewModel)
+            return result;
+        const toSource = idx => viewModel === menu.tasksModel ? idx : viewModel.mapToSource(idx);
+        const walk = parent => {
+            const rows = viewModel.rowCount(parent);
+            for (let row = 0; row < rows; ++row) {
+                const viewIdx = viewModel.index(row, 0, parent);
+                const idx = toSource(viewIdx);
+                if (menu.tasksModel.data(idx, atm.IsGroupParent)) {
+                    walk(viewIdx);
+                } else if (menu.tasksModel.data(idx, atm.IsWindow) && menu.tasksModel.data(idx, atm.AppId) === appId) {
+                    const winIds = menu.tasksModel.data(idx, atm.WinIdList) || [];
+                    if (winIds.length > 0 && ownWinIds.indexOf(winIds[0]) === -1)
+                        result.push(idx);
+                }
+            }
+        };
+        walk(viewModel.index(-1, -1));
+        return result;
+    }
+
     function show(): void {
         Plasmoid.contextualActionsAboutToShow();
+        _otherAppWindows = otherAppWindows();
 
         loadDynamicLaunchActions(get(atm.LauncherUrlWithoutIcon), () => {
             menu.openRelative();
         });
     }
 
-    function newMenuItem(parent: QtObject): var {
-        return Qt.createQmlObject(`
-            import org.kde.plasma.extras as PlasmaExtras
+    // Declared as properties: PlasmaExtras.Menu's default property only takes menu items
+    readonly property Component _menuItemComponent: Component {
+        PlasmaExtras.MenuItem {}
+    }
+    readonly property Component _separatorComponent: Component {
+        PlasmaExtras.MenuItem { separator: true }
+    }
+    readonly property Component _placesSubMenuComponent: Component {
+        PlacesSubMenu {}
+    }
+    // Used to elide dynamic item texts, since QMenu does not limit its width automatically
+    readonly property TextMetrics _textMetrics: TextMetrics {
+        elide: Qt.ElideRight
+        elideWidth: Kirigami.Units.iconSizes.sizeForLabels * 28
+    }
 
-            PlasmaExtras.MenuItem {}
-        `, parent);
+    function newMenuItem(parent: QtObject): var {
+        return _menuItemComponent.createObject(parent);
     }
 
     function newSeparator(parent: QtObject): var {
-        return Qt.createQmlObject(`
-            import org.kde.plasma.extras as PlasmaExtras
-
-            PlasmaExtras.MenuItem { separator: true }
-            `, parent);
+        return _separatorComponent.createObject(parent);
     }
 
     property var _dynamicDesktopItems: []
@@ -122,16 +162,11 @@ PlasmaExtras.Menu {
         });
         _dynamicDesktopItems = [];
 
-        // Manually elide text since QMenu does not limit its width automatically
-        const textMetrics = Qt.createQmlObject("import QtQuick; TextMetrics {}", menu);
-        textMetrics.elide = Qt.ElideRight;
-        textMetrics.elideWidth = Kirigami.Units.iconSizes.sizeForLabels * 28;
-
         function elideText(text) {
             if (!text)
                 return "";
-            textMetrics.text = text.replace(/&/g, "&&");
-            return textMetrics.elidedText;
+            menu._textMetrics.text = text.replace(/&/g, "&&");
+            return menu._textMetrics.elidedText;
         }
 
         function setIcon(item, iconPath) {
@@ -165,7 +200,7 @@ PlasmaExtras.Menu {
 
         // 1.5 Add Places Submenu (for Dolphin / File Managers)
         if (result.places && result.places.length > 0) {
-            let placesSubItem = Qt.createQmlObject('import "."; PlacesSubMenu {}', menu);
+            let placesSubItem = menu._placesSubMenuComponent.createObject(menu);
             placesSubItem.text = Wrappers.i18n("Places");
             let placesSubMenu = placesSubItem.subMenu;
 
@@ -957,6 +992,20 @@ PlasmaExtras.Menu {
 
         onClicked: {
             menu.tasksModel.requestClose(menu.modelIndex);
+        }
+    }
+
+    PlasmaExtras.MenuItem {
+        id: closeOtherWindowsItem
+        visible: visualParent && get(atm.IsWindow) && !get(atm.IsGroupParent) && menu._otherAppWindows.length > 0
+
+        text: Wrappers.i18nc("@item:inmenu", "Close &Other Windows")
+        icon: "window-close"
+
+        onClicked: {
+            // Walk again: rows may have moved since the menu opened
+            for (const idx of menu.otherAppWindows())
+                menu.tasksModel.requestClose(idx);
         }
     }
 }

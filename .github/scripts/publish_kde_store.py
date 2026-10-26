@@ -199,7 +199,6 @@ def login(session, username, password):
 
     login_html = res.text
     csrf = extract_input_value(login_html, 'csrf')
-    twit = extract_input_value(login_html, 'twit')
     redirect_url = extract_input_value(login_html, 'redirect_url')
 
     if not csrf:
@@ -207,7 +206,6 @@ def login(session, username, password):
         res = session.get(OPENDESKTOP_LOGIN_URL, headers=HEADERS, allow_redirects=True)
         login_html = res.text
         csrf = extract_input_value(login_html, 'csrf')
-        twit = extract_input_value(login_html, 'twit')
         redirect_url = extract_input_value(login_html, 'redirect_url')
 
     if not csrf:
@@ -522,7 +520,7 @@ def upload_file_to_pling(session, filepath, edit_info):
     try:
         upload_json = res.json()
         log_debug(f"Pling CDN upload JSON response: {upload_json}")
-    except Exception as e:
+    except Exception:
         print(f"Error: Failed to parse Pling upload JSON response. Raw text:\n{res.text}", file=sys.stderr)
         sys.exit(1)
 

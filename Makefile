@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # FancyTasksNG Makefile
-.PHONY: all build install update test clean translate diag
+.PHONY: all build install update test preview lint clean diag
 
 all: build
 
@@ -19,15 +19,19 @@ update:
 	@./tools/update.sh
 
 test:
+	@python3 -m unittest discover -s tests
+
+preview:
 	@./tools/testing.sh
 
-translate:
-	@./tools/extract_messages.sh
-	@./tools/compile_messages.sh
+lint:
+	@ruff check --select E9,F package/contents/ui/code tools .github/scripts tests
+	@shellcheck --severity=warning tools/*.sh
+	@python3 tools/sync_defaults.py --check
+	@python3 -m json.tool package/metadata.json > /dev/null
 
 clean:
 	@rm -rf build release
-	@rm -rf package/contents/locale/*
 	@echo "Cleanup complete."
 
 diag:

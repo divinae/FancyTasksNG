@@ -15,9 +15,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log_info "Compiling translations..."
-"${SCRIPT_DIR}/compile_messages.sh"
-
 # Keep ConfigPage.qml's cfg_*Default values in sync with main.xml
 python3 "${SCRIPT_DIR}/sync_defaults.py"
 

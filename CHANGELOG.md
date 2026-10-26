@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Group Only When Full:** New "Only when the task manager is full" grouping option (Behavior page): windows of one app stay separate until the task bar runs out of space, as in the stock Task Manager. Labeled buttons only.
+- **Text Lines Setting:** The maximum number of text lines in a task button can now be set on the Appearance page (the option existed but had no control).
+- **Urgent Apps:** Apps that set the Unity LauncherEntry "urgent" flag (for example a chat app with a new message) now get the same attention highlight, animation and panel unhiding as a window that requests attention.
+- **Close Other Windows:** The context menu of a window now has "Close Other Windows", which closes the app's other windows and keeps this one.
+- **Grouping Blocklist:** The Behavior page now lists the apps excluded from grouping (via "Allow this program to be grouped"), with a button to allow grouping again.
+- **Seek Bar:** The media bar under tooltip thumbnails now has a seek bar for players that support seeking.
+
+### Removed
+- **Translations:** The widget is now English-only. The translation catalogs, the `make translate` target and the translation steps in the build, install and preview scripts are gone.
+
+### Changed
+- **Development:** `make test` now runs the unit tests in `tests/`, the Plasma preview window moved to `make preview`, and `make lint` runs ruff, shellcheck and the config defaults check. A CI workflow runs lint and tests on every push and pull request.
+- **Faster Context Menus:** Browser history is no longer re-copied from the browser's database on every menu open; it is reused until the browser writes new history. Cached menu data is refreshed at most every 15 seconds, and the cache no longer grows without limit.
+- **Native Tooltips:** Tooltips now use the Plasma theme's tooltip frame with its corners, blur and shadow, native sliders and theme fonts. Text is left-aligned like Plasma's own tooltips, and the desktop/activity info sits on the right of the title row.
+- **Window Thumbnails:** Thumbnails are larger (16:10 tiles instead of the screen's aspect ratio), have rounded corners, and are downscaled smoothly so text in them is readable. The close button appears when hovering a window's tile.
+- **Media Controls:** Player controls are now shown in a bar under the thumbnail by default, always visible like in the stock Task Manager (the hover overlay is still available in the settings).
+
+### Fixed
+- **Group Tooltips with Filters:** Closing, activating or dropping files on a window in a group tooltip now targets the right window when the minimized or reverse filters hide some tasks.
+- **Settings Applied Live:** Switching icons-only mode or the group popup option now updates the task list immediately instead of after a Plasma restart.
+- **Keyboard Shortcuts:** Meta+1..9 activates the task at that position again, and Meta+Shift+1..9 opens a new instance of it (the handler was removed by mistake in 2.1.0).
+- **Helper Errors:** If the Python helper can't start (for example because python3-dbus or PyGObject is missing), the Advanced settings page now says so, and configuration import/export reports the real problem instead of "not a valid configuration". The required Python modules are now listed in the README and checked by `make diag`.
+- **Helper Processes:** A second task manager instance no longer leaves an idle helper process waiting on D-Bus, the badge helper now exits together with Plasma, and helpers start correctly from install paths containing spaces or quotes.
+- **Pinned Apps Order:** With manual sorting, running pinned apps now stay in their launcher slots after a Plasma restart, and a newly opened pinned app now appears in its slot instead of at the end of the task bar. As in the stock Task Manager, pinned apps now always form one block before unpinned ones. Reordering with Ctrl+Shift+Arrow keys now also saves the pinned apps order.
+- **Keyboard Reordering:** Ctrl+Shift+Arrow keys now move the right task when the minimized or reverse filters are active, and no longer overwrite the pinned apps order when the task cannot move.
+- **Recent Documents:** Files with spaces, apostrophes or non-ASCII characters in their names now show up in the context menu and open correctly.
+- **Browser History:** "Recent Pages" now finds the right history database, includes pages visited in the last few minutes, and no longer appears for non-browser apps such as Thunderbird.
+- **Jump List Actions:** Desktop actions are now launched without a shell, and unsupported field codes (`%i`, `%c`, `%k`) are removed instead of being passed to the app.
+- **Configuration Export/Import:** Paths with spaces or non-ASCII characters now work.
+- **Tooltips:** Moving the mouse into a sideways tooltip (custom popup direction) no longer switches to another task.
+- **Grouped Windows:** Closing a window inside a group no longer plays the close animation on an unrelated task.
+
 ## [2.2.0] - 2026-09-24
 
 ### Added

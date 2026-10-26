@@ -19,6 +19,9 @@ Item {
     // Reactive store for unread counts and progress
     property var unityCounts: ({})
     property var unityProgress: ({})
+    property var unityUrgent: ({})
+    // True while any app has set the LauncherEntry "urgent" flag
+    property bool anyUrgent: false
     property int countVersion: 0
 
     Component.onCompleted: bridgeStarter.start()
@@ -30,12 +33,14 @@ Item {
         connectedSources: []
         
         function start() {
-            let scriptPath = Qt.resolvedUrl("../unity_bridge.py").toString().replace(/^file:\/\//, "");
-            connectSource("python3 " + scriptPath);
+            let scriptPath = decodeURIComponent(Qt.resolvedUrl("../unity_bridge.py").toString().replace(/^file:\/\//, ""));
+            connectSource("python3 '" + scriptPath.replace(/'/g, "'\\''") + "'");
         }
         
         onNewData: (sourceName, data) => {
-            if (data.stderr) console.log("FancyTasksNG BadgeBridge Error:", data.stderr);
+            if (data["exit code"])
+                console.warn("FancyTasksNG: badge bridge failed:", data.stderr);
+            disconnectSource(sourceName);
         }
     }
 
@@ -46,8 +51,8 @@ Item {
         path: "/Bridge"
         iface: "io.github.daydve.fancytasksng.BadgeUpdate"
         
-        function dbusUpdateSignal(appId, count, progress) {
-            root.updateData(String(appId), count, progress);
+        function dbusUpdateSignal(appId, count, progress, urgent) {
+            root.updateData(String(appId), count, progress, !!urgent);
         }
     }
 
@@ -86,9 +91,24 @@ Item {
     }
 
     /**
-     * Updates the count and progress for an application and triggers UI refresh.
+     * Returns whether the app has set the LauncherEntry "urgent" flag.
      */
-    function updateData(appId, count, progress) {
+    function getUrgent(appId) {
+        if (!appId) return false;
+
+        let strId = String(appId);
+        let cleanId = strId;
+        if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
+        if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
+        if (cleanId.startsWith("applications:")) cleanId = cleanId.slice(13);
+
+        return !!(unityUrgent[strId] || unityUrgent[cleanId] || unityUrgent[cleanId + ".desktop"]);
+    }
+
+    /**
+     * Updates the count, progress and urgent flag for an application and triggers UI refresh.
+     */
+    function updateData(appId, count, progress, urgent) {
         let strId = String(appId);
         let cleanId = strId;
         if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
@@ -103,6 +123,10 @@ Item {
         for (let key in unityProgress) {
             newProgress[key] = unityProgress[key];
         }
+        let newUrgent = {};
+        for (let key in unityUrgent) {
+            newUrgent[key] = unityUrgent[key];
+        }
         
         newCounts[strId] = count;
         newCounts[cleanId] = count;
@@ -111,7 +135,11 @@ Item {
         newProgress[strId] = progress;
         newProgress[cleanId] = progress;
         newProgress[cleanId + ".desktop"] = progress;
-        
+
+        newUrgent[strId] = urgent;
+        newUrgent[cleanId] = urgent;
+        newUrgent[cleanId + ".desktop"] = urgent;
+
         // Handle dot-notation names (e.g. io.github.name)
         if (cleanId.includes(".")) {
             let dots = cleanId.split(".");
@@ -120,10 +148,14 @@ Item {
             newCounts[baseName + ".desktop"] = count;
             newProgress[baseName] = progress;
             newProgress[baseName + ".desktop"] = progress;
+            newUrgent[baseName] = urgent;
+            newUrgent[baseName + ".desktop"] = urgent;
         }
 
         root.unityCounts = newCounts;
         root.unityProgress = newProgress;
+        root.unityUrgent = newUrgent;
+        root.anyUrgent = Object.keys(newUrgent).some(key => newUrgent[key]);
         root.countVersion++;
     }
 }
