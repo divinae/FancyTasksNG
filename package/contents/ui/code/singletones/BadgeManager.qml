@@ -8,6 +8,7 @@ pragma Singleton
 import QtQuick
 import org.kde.plasma.workspace.dbus as DBus
 import org.kde.plasma.plasma5support as Plasma5Support
+import org.kde.notificationmanager as NotificationManager
 
 /**
  * BadgeManager: Unified aggregator for taskbar badges.
@@ -23,6 +24,9 @@ Item {
     // True while any app has set the LauncherEntry "urgent" flag
     property bool anyUrgent: false
     property int countVersion: 0
+    // Unread notification counts per desktop entry (e.g. "org.kde.dolphin"), like the
+    // stock task manager's badges for apps that don't use the LauncherEntry API
+    property var notificationCounts: ({})
 
     Component.onCompleted: bridgeStarter.start()
 
@@ -42,6 +46,59 @@ Item {
                 console.warn("FancyTasksNG: badge bridge failed:", data.stderr);
             disconnectSource(sourceName);
         }
+    }
+
+    NotificationManager.Settings {
+        id: notificationSettings
+        live: true
+    }
+
+    NotificationManager.Notifications {
+        id: notificationsModel
+        showNotifications: true
+        showJobs: false
+        showExpired: true
+        showDismissed: true
+        groupMode: NotificationManager.Notifications.GroupDisabled
+
+        onCountChanged: notificationCountTimer.restart()
+        onDataChanged: notificationCountTimer.restart()
+        onModelReset: notificationCountTimer.restart()
+    }
+
+    Connections {
+        target: notificationSettings
+        function onBadgesInTaskManagerChanged() {
+            notificationCountTimer.restart();
+        }
+        function onBadgeBlacklistedApplicationsChanged() {
+            notificationCountTimer.restart();
+        }
+    }
+
+    // Coalesce bursts of model changes into one recount
+    Timer {
+        id: notificationCountTimer
+        interval: 100
+        onTriggered: root.recountNotifications()
+    }
+
+    function recountNotifications() {
+        const counts = {};
+        if (notificationSettings.badgesInTaskManager) {
+            const blocked = notificationSettings.badgeBlacklistedApplications || [];
+            for (let row = 0; row < notificationsModel.count; ++row) {
+                const idx = notificationsModel.index(row, 0);
+                if (notificationsModel.data(idx, NotificationManager.Notifications.ReadRole))
+                    continue;
+                const entry = String(notificationsModel.data(idx, NotificationManager.Notifications.DesktopEntryRole) || "");
+                if (!entry || blocked.indexOf(entry) !== -1)
+                    continue;
+                counts[entry] = (counts[entry] || 0) + 1;
+            }
+        }
+        root.notificationCounts = counts;
+        root.countVersion++;
     }
 
     // Listener for internal bridge signals
@@ -69,7 +126,9 @@ Item {
         if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
         if (cleanId.startsWith("applications:")) cleanId = cleanId.slice(13);
 
-        return unityCounts[strId] || unityCounts[cleanId] || unityCounts[cleanId + ".desktop"] || 0;
+        // LauncherEntry counts win over notification counts, like the stock task manager
+        return unityCounts[strId] || unityCounts[cleanId] || unityCounts[cleanId + ".desktop"]
+            || notificationCounts[cleanId] || 0;
     }
 
     /**

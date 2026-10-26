@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Notification Badges:** Apps that send desktop notifications now get an unread-count badge, like in the stock Task Manager, without needing the Unity LauncherEntry API. It follows the system setting "Show badges in task manager" and its per-app exceptions.
 - **Group Only When Full:** New "Only when the task manager is full" grouping option (Behavior page): windows of one app stay separate until the task bar runs out of space, as in the stock Task Manager. Labeled buttons only.
 - **Text Lines Setting:** The maximum number of text lines in a task button can now be set on the Appearance page (the option existed but had no control).
 - **Urgent Apps:** Apps that set the Unity LauncherEntry "urgent" flag (for example a chat app with a new message) now get the same attention highlight, animation and panel unhiding as a window that requests attention.
