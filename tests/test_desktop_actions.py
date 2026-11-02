@@ -251,6 +251,51 @@ class AutostartTest(unittest.TestCase):
         self.assertFalse(self.autostart.exists())
         self.assertFalse(da.set_autostart(None, True, **self.kw))
 
+    def test_unreadable_user_entry_is_left_alone(self):
+        self.autostart.mkdir()
+        bad = self.autostart / "org.example.App.desktop"
+        bad.write_bytes(b"\xff\xfe not utf-8")
+        da.set_autostart(str(self.desktop), True, **self.kw)
+        self.assertEqual(bad.read_bytes(), b"\xff\xfe not utf-8")
+
+    def test_symlink_target_never_written(self):
+        self.autostart.mkdir()
+        target = Path(self.tmp.name) / "launcher.desktop"
+        target.write_text("[Desktop Entry]\nName=App\nExec=app\n", encoding="utf-8")
+        (self.autostart / "org.example.App.desktop").symlink_to(target)
+        self.assertFalse(da.set_autostart(str(self.desktop), False, **self.kw))
+        self.assertNotIn("Hidden", target.read_text(encoding="utf-8"))
+        self.assertFalse((self.autostart / "org.example.App.desktop").is_symlink())
+
+    def test_comments_and_duplicate_keys_kept(self):
+        self.autostart.mkdir()
+        text = "# my note\n[Desktop Entry]\nName=App\nKeywords=a\nKeywords=b\nExec=app --x\n"
+        (self.autostart / "org.example.App.desktop").write_text(text, encoding="utf-8")
+        self.assertTrue(da.is_autostart(str(self.desktop), **self.kw))
+        da.set_autostart(str(self.desktop), False, **self.kw)
+        da.set_autostart(str(self.desktop), True, **self.kw)
+        self.assertEqual(self.entry(), text)
+
+    def test_system_entry_appearing_after_own_entry(self):
+        da.set_autostart(str(self.desktop), True, **self.kw)
+        (self.system / "org.example.App.desktop").write_text("[Desktop Entry]\nName=App\nExec=app\n", encoding="utf-8")
+        self.assertFalse(da.set_autostart(str(self.desktop), False, **self.kw))
+        self.assertIn("Hidden=true", self.entry())
+
+    def test_state_unmanageable(self):
+        self.assertEqual(da.autostart_state(None, **self.kw), -1)
+        self.assertEqual(da.autostart_state(str(self.desktop) + ".nope", **self.kw), -1)
+        self.assertEqual(da.autostart_state(str(self.desktop), **self.kw), 0)
+
+    def test_xdg_dirs(self):
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": "/cfg", "XDG_CONFIG_DIRS": "/a:/b"}):
+            self.assertEqual(da.user_autostart_dir(), Path("/cfg/autostart"))
+            self.assertEqual(da.system_autostart_dirs(), ["/a/autostart", "/b/autostart"])
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": "/home/x/data", "XDG_DATA_DIRS": "/usr/share"}):
+            dirs = da._xdg_application_dirs()
+            self.assertEqual(dirs[0], "/home/x/data/applications")
+            self.assertIn("/var/lib/snapd/desktop/applications", dirs)
+
     def test_desktop_file_id_from_subdirectory(self):
         sub = self.apps / "kde4" / "foo.desktop"
         self.assertEqual(da.desktop_file_id(str(sub), [str(self.apps)]), "kde4-foo.desktop")

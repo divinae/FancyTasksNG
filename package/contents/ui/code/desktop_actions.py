@@ -37,14 +37,26 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
 
 KACTIVITIES_DB = Path.home() / ".local/share/kactivitymanagerd/resources/database"
-DESKTOP_DIRS = [
-    "/usr/share/applications",
-    "/usr/local/share/applications",
-    str(Path.home() / ".local/share/applications"),
-    # Flatpak
-    "/var/lib/flatpak/exports/share/applications",
-    str(Path.home() / ".local/share/flatpak/exports/share/applications"),
-]
+def _xdg_application_dirs():
+    """applications/ dirs in XDG lookup order: the user's data home first, so user overrides
+    win, then $XDG_DATA_DIRS, then Flatpak/Snap export dirs that may not be listed there."""
+    data_home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local/share")
+    data_dirs = (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":")
+    dirs = [os.path.join(data_home, "applications")]
+    dirs += [os.path.join(d, "applications") for d in data_dirs if d]
+    dirs += [
+        str(Path.home() / ".local/share/flatpak/exports/share/applications"),
+        "/var/lib/flatpak/exports/share/applications",
+        "/var/lib/snapd/desktop/applications",
+    ]
+    unique = []
+    for d in dirs:
+        if d not in unique:
+            unique.append(d)
+    return unique
+
+
+DESKTOP_DIRS = _xdg_application_dirs()
 MAX_RECENT = 5
 
 # KDE icon names for common mime type groups
@@ -60,6 +72,19 @@ MIME_ICON_MAP = {
     "application/vnd.openxml": "x-office-document",
     "application/zip": "application-zip",
 }
+
+
+def read_desktop_file(path):
+    """Parse a desktop file, or None. Lenient like desktop-file readers: duplicate keys and
+    sections are allowed (last wins), no interpolation, key case preserved."""
+    cp = configparser.RawConfigParser(interpolation=None, strict=False)
+    cp.optionxform = str
+    try:
+        with open(path, encoding="utf-8") as f:
+            cp.read_file(f)
+    except (configparser.Error, OSError, UnicodeDecodeError):
+        return None
+    return cp if cp.has_section("Desktop Entry") else None
 
 
 def resolve_launcher_url(url_str):
@@ -100,11 +125,8 @@ def get_jump_list_actions(desktop_path):
     if not desktop_path or not os.path.isfile(desktop_path):
         return actions
 
-    cp = configparser.RawConfigParser()
-    cp.optionxform = str  # preserve case
-    try:
-        cp.read(desktop_path, encoding="utf-8")
-    except Exception:
+    cp = read_desktop_file(desktop_path)
+    if cp is None:
         return actions
 
     action_ids = cp.get("Desktop Entry", "Actions", fallback="").strip(";").split(";")
@@ -800,9 +822,10 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='b')
-    def IsAutostart(self, launcher_url):
-        return is_autostart(resolve_launcher_url(launcher_url))
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='i')
+    def AutostartState(self, launcher_url):
+        """1 = starts at login, 0 = doesn't, -1 = not manageable (no desktop file)."""
+        return autostart_state(resolve_launcher_url(launcher_url))
 
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='sb', out_signature='b')
     def SetAutostart(self, launcher_url, enabled):
@@ -937,7 +960,15 @@ def panel_visibility(containment_id, rc_path=None):
 
 
 AUTOSTART_MARKER = "X-FancyTasksNG-Autostart"
-SYSTEM_AUTOSTART_DIRS = ["/etc/xdg/autostart"]
+
+
+def user_autostart_dir():
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "autostart"
+
+
+def system_autostart_dirs():
+    config_dirs = (os.environ.get("XDG_CONFIG_DIRS") or "/etc/xdg").split(":")
+    return [os.path.join(d, "autostart") for d in config_dirs if d]
 
 
 def desktop_file_id(desktop_path, app_dirs=None):
@@ -951,19 +982,8 @@ def desktop_file_id(desktop_path, app_dirs=None):
 
 
 def autostart_path(desktop_path, autostart_dir=None, app_dirs=None):
-    """Where the user autostart entry of a desktop file lives (~/.config/autostart/<id>)."""
-    autostart_dir = Path(autostart_dir) if autostart_dir else Path.home() / ".config" / "autostart"
-    return autostart_dir / desktop_file_id(desktop_path, app_dirs)
-
-
-def _read_entry(path):
-    cp = configparser.RawConfigParser(interpolation=None)
-    cp.optionxform = str
-    try:
-        cp.read(path, encoding="utf-8")
-    except (configparser.Error, OSError, UnicodeDecodeError):
-        return None
-    return cp if cp.has_section("Desktop Entry") else None
+    """Where the user autostart entry of a desktop file lives (<config home>/autostart/<id>)."""
+    return Path(autostart_dir or user_autostart_dir()) / desktop_file_id(desktop_path, app_dirs)
 
 
 def _entry_enabled(cp):
@@ -972,68 +992,101 @@ def _entry_enabled(cp):
             and entry.get("X-GNOME-Autostart-enabled", "true").strip().lower() != "false")
 
 
-def _write_entry(cp, path):
+def _set_entry_keys(text, changes):
+    """Set (value) or remove (None) keys in the [Desktop Entry] group of desktop-file text,
+    editing lines in place so comments, other groups and formatting are kept."""
+    lines = text.splitlines()
+    start = next((n for n, l in enumerate(lines) if l.strip() == "[Desktop Entry]"), None)
+    if start is None:
+        lines = ["[Desktop Entry]"] + lines
+        start = 0
+    end = next((n for n in range(start + 1, len(lines)) if lines[n].lstrip().startswith("[")), len(lines))
+    group = lines[start + 1:end]
+    for key, value in changes.items():
+        group = [l for l in group if l.split("=", 1)[0].strip() != key]
+        if value is not None:
+            insert_at = len(group)
+            while insert_at > 0 and not group[insert_at - 1].strip():
+                insert_at -= 1
+            group.insert(insert_at, f"{key}={value}")
+    lines[start + 1:end] = group
+    return "\n".join(lines) + "\n"
+
+
+def _write_text(path, text):
+    """Write a regular file, never through a symlink (replace the link instead)."""
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        cp.write(f, space_around_delimiters=False)
+    if path.is_symlink():
+        path.unlink()
+    path.write_text(text, encoding="utf-8")
+
+
+def autostart_state(desktop_path, autostart_dir=None, system_dirs=None, app_dirs=None):
+    """1 = starts at login, 0 = doesn't, -1 = can't be managed (no .desktop file to start)."""
+    if not desktop_path or not str(desktop_path).endswith(".desktop") or not os.path.isfile(desktop_path):
+        return -1
+    user = autostart_path(desktop_path, autostart_dir, app_dirs)
+    if user.exists():
+        cp = read_desktop_file(user)
+        return 1 if cp and _entry_enabled(cp) else 0
+    file_id = desktop_file_id(desktop_path, app_dirs)
+    for system_dir in (system_autostart_dirs() if system_dirs is None else system_dirs):
+        cp = read_desktop_file(Path(system_dir) / file_id)
+        if cp:
+            return 1 if _entry_enabled(cp) else 0
+    return 0
 
 
 def is_autostart(desktop_path, autostart_dir=None, system_dirs=None, app_dirs=None):
-    """Whether the app starts at login: the user entry decides (it can disable a system entry
-    with Hidden=true); otherwise a system-wide /etc/xdg/autostart entry counts."""
-    if not desktop_path or not str(desktop_path).endswith(".desktop"):
-        return False
-    user = autostart_path(desktop_path, autostart_dir, app_dirs)
-    if user.is_file():
-        cp = _read_entry(user)
-        return bool(cp) and _entry_enabled(cp)
-    file_id = desktop_file_id(desktop_path, app_dirs)
-    for system_dir in (SYSTEM_AUTOSTART_DIRS if system_dirs is None else system_dirs):
-        cp = _read_entry(Path(system_dir) / file_id)
-        if cp:
-            return _entry_enabled(cp)
-    return False
+    return autostart_state(desktop_path, autostart_dir, system_dirs, app_dirs) == 1
 
 
 def set_autostart(desktop_path, enabled, autostart_dir=None, system_dirs=None, app_dirs=None):
     """Turn autostart on/off without destroying entries the user wrote themselves.
 
     On: re-enable an existing user entry (drop Hidden / X-GNOME-Autostart-enabled=false), or copy
-    the app's desktop file, marked as ours. Off: delete the entry only if we created it; otherwise
-    (hand-made entry, or a system-wide one) write/keep a user entry with Hidden=true.
-    Returns the resulting state.
+    the app's desktop file verbatim plus our marker. Off: delete the entry only if we created it;
+    otherwise keep it and set Hidden=true. If a system-wide entry would still start the app,
+    write a Hidden=true user override. A user entry we can't parse, or a symlinked one we can't
+    edit safely, is replaced only when that cannot lose content. Returns the resulting state.
     """
-    if not desktop_path or not str(desktop_path).endswith(".desktop") or not os.path.isfile(desktop_path):
+    kw = dict(autostart_dir=autostart_dir, system_dirs=system_dirs, app_dirs=app_dirs)
+    if autostart_state(desktop_path, **kw) == -1:
         return False
     user = autostart_path(desktop_path, autostart_dir, app_dirs)
     try:
-        cp = _read_entry(user) if user.is_file() else None
+        own_entry = False
+        user_text = None
+        if user.exists():
+            cp = read_desktop_file(user)
+            if cp is None:
+                # Unreadable hand-made entry: leave it alone rather than overwrite it
+                return is_autostart(desktop_path, **kw)
+            own_entry = cp["Desktop Entry"].get(AUTOSTART_MARKER) == "true"
+            # A symlink's content lives elsewhere; edit a copy so the target is never touched
+            user_text = user.read_text(encoding="utf-8")
+        source_text = Path(desktop_path).read_text(encoding="utf-8")
+
         if enabled:
-            if cp:
-                entry = cp["Desktop Entry"]
-                entry.pop("Hidden", None)
-                if entry.get("X-GNOME-Autostart-enabled", "").strip().lower() == "false":
-                    entry["X-GNOME-Autostart-enabled"] = "true"
-                _write_entry(cp, user)
-            elif not is_autostart(desktop_path, autostart_dir, system_dirs, app_dirs):
-                cp = _read_entry(desktop_path)
-                if not cp:
-                    return False
-                cp["Desktop Entry"][AUTOSTART_MARKER] = "true"
-                _write_entry(cp, user)
+            if user_text is not None:
+                _write_text(user, _set_entry_keys(user_text, {
+                    "Hidden": None,
+                    "X-GNOME-Autostart-enabled": None,
+                }))
+            if not is_autostart(desktop_path, **kw):
+                _write_text(user, _set_entry_keys(source_text, {AUTOSTART_MARKER: "true", "Hidden": None}))
         else:
-            if cp and cp["Desktop Entry"].get(AUTOSTART_MARKER) == "true":
+            if user_text is not None and own_entry:
                 user.unlink()
-            elif cp or is_autostart(desktop_path, autostart_dir, system_dirs, app_dirs):
-                if not cp:
-                    cp = _read_entry(desktop_path)
-                    if not cp:
-                        return False
-                cp["Desktop Entry"]["Hidden"] = "true"
-                _write_entry(cp, user)
+            elif user_text is not None:
+                _write_text(user, _set_entry_keys(user_text, {"Hidden": "true"}))
+            if is_autostart(desktop_path, **kw):
+                # Still started by a system-wide entry: override it
+                _write_text(user, _set_entry_keys(source_text, {AUTOSTART_MARKER: "true", "Hidden": "true"}))
     except OSError as e:
         print(f"desktop_actions: autostart error: {e}", file=sys.stderr)
-    return is_autostart(desktop_path, autostart_dir, system_dirs, app_dirs)
+    return is_autostart(desktop_path, **kw)
 
 
 def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):
@@ -1055,13 +1108,8 @@ def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):
 
 def get_desktop_exec(desktop_path):
     """Helper to get the Exec line from a desktop file."""
-    try:
-        config = configparser.ConfigParser(interpolation=None)
-        config.read(desktop_path)
-        if 'Desktop Entry' in config:
-            return config['Desktop Entry'].get('Exec')
-    except Exception: pass
-    return None
+    cp = read_desktop_file(desktop_path)
+    return cp["Desktop Entry"].get("Exec") if cp else None
 
 def main():
     set_pdeathsig()

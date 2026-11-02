@@ -197,21 +197,37 @@ Item {
         _call(root._service, "PanelVisibility", [parseInt(containmentId)], "(i)", reply => callback(parseInt(reply)));
     }
 
-    // Autostart state as true/false, or null if the helper could not be reached
-    function _boolReply(reply) {
-        return reply === "true" ? true : (reply === "false" ? false : null);
+    // Autostart state per launcher URL: 1 = on, 0 = off, -1 = can't be managed, -2 = not known
+    // (loading, or the helper is unavailable). Kept here, not in the short-lived context menu,
+    // so a reply arriving after the menu closed has a live object to land on.
+    property var autostartStates: ({})
+
+    function _setAutostartState(launcherUrl, state) {
+        const next = Object.assign({}, autostartStates);
+        next[launcherUrl] = state;
+        autostartStates = next;
     }
 
-    function isAutostart(launcherUrl, callback) {
-        _call(root._service, "IsAutostart", [String(launcherUrl || "")], "(s)", reply => callback(_boolReply(reply)));
+    function autostartState(launcherUrl) {
+        return launcherUrl in autostartStates ? autostartStates[launcherUrl] : -2;
     }
 
-    function setAutostart(launcherUrl, enabled, callback) {
-        _call(root._service, "SetAutostart", [String(launcherUrl || ""), !!enabled], "(sb)", reply => {
-            if (_boolReply(reply) === null)
+    function refreshAutostart(launcherUrl) {
+        _setAutostartState(launcherUrl, -2);
+        _call(root._service, "AutostartState", [launcherUrl], "(s)", reply => {
+            const state = parseInt(reply);
+            _setAutostartState(launcherUrl, (state === 1 || state === 0 || state === -1) ? state : -2);
+        });
+    }
+
+    function setAutostart(launcherUrl, enabled) {
+        _call(root._service, "SetAutostart", [launcherUrl, !!enabled], "(sb)", reply => {
+            if (reply !== "true" && reply !== "false") {
                 console.warn("FancyTasksNG: changing autostart failed:", reply);
-            if (callback)
-                callback(_boolReply(reply));
+                _setAutostartState(launcherUrl, -2);
+            } else {
+                _setAutostartState(launcherUrl, reply === "true" ? 1 : 0);
+            }
         });
     }
 

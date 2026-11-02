@@ -116,21 +116,18 @@ PlasmaExtras.Menu {
         return result;
     }
 
-    // Whether this app starts at login, fetched when the menu opens. The item stays disabled
-    // until the answer arrives (null = unknown / helper unavailable), so a click can't act on
-    // a stale value.
-    property var autostartEnabled: null
+    // The task's launcher URL as a string ("" if none; QUrl objects are always truthy)
+    readonly property string launcherUrlString: visualParent ? String(get(atm.LauncherUrlWithoutIcon) || "") : ""
+    // Autostart state from DesktopActionsManager (fetched in show()); see autostartState() there
+    readonly property int autostartState: launcherUrlString !== "" ? DesktopActionsManager.autostartState(launcherUrlString) : -1
 
     function show(): void {
         Plasmoid.contextualActionsAboutToShow();
         _otherAppWindows = otherAppWindows();
-        // QUrl objects are always truthy, so test the string form
-        const launcherUrl = String(get(atm.LauncherUrlWithoutIcon) || "");
-        menu.autostartEnabled = null;
-        if (launcherUrl !== "")
-            DesktopActionsManager.isAutostart(launcherUrl, enabled => menu.autostartEnabled = enabled);
+        if (launcherUrlString !== "")
+            DesktopActionsManager.refreshAutostart(launcherUrlString);
 
-        loadDynamicLaunchActions(launcherUrl, () => {
+        loadDynamicLaunchActions(launcherUrlString, () => {
             menu.openRelative();
         });
     }
@@ -798,17 +795,18 @@ PlasmaExtras.Menu {
 
     // macOS-style "Open at Login": adds/removes the app's desktop file in ~/.config/autostart
     PlasmaExtras.MenuItem {
-        visible: visualParent && get(atm.IsStartup) !== true && String(get(atm.LauncherUrlWithoutIcon) || "") !== ""
+        // Hidden where it can't work (no desktop file, e.g. preferred:// launchers); disabled
+        // until the state is known so a click never acts on a stale value
+        visible: visualParent && get(atm.IsStartup) !== true && menu.autostartState !== -1
             && Plasmoid.immutability !== PlasmaCore.Types.SystemImmutable
 
         text: Wrappers.i18nc("@item:inmenu", "Open at &Login")
         icon: "system-run"
         checkable: true
-        enabled: menu.autostartEnabled !== null
-        checked: menu.autostartEnabled === true
+        enabled: menu.autostartState >= 0
+        checked: menu.autostartState === 1
 
-        // The menu closes (and is destroyed) on click, so the reply is not written back to it
-        onClicked: DesktopActionsManager.setAutostart(String(get(atm.LauncherUrlWithoutIcon)), menu.autostartEnabled !== true, null)
+        onClicked: DesktopActionsManager.setAutostart(menu.launcherUrlString, menu.autostartState !== 1)
     }
 
     PlasmaExtras.MenuItem {
