@@ -291,7 +291,8 @@ ConfigPage {
         }
     
         RowLayout {
-            visible: enableToolTips.checked
+            // Only grouped tooltips have several windows to order
+            visible: enableToolTips.checked && behaviorPage.cfg_groupingStrategy !== 0
             Item {
                 implicitWidth: behaviorPage.gridUnit
             }

@@ -77,11 +77,9 @@ Loader {
     // Browsers play audio from one process for all windows and don't tag streams with a
     // window id; the only per-window hint is the title, which is the active tab's title.
     property int _titlesVersion: 0
-    // Emitted when window data (e.g. activation time) changes, so a group can re-sort
-    signal windowOrderChanged()
     Connections {
         target: toolTipDelegate.tasksModel
-        function onDataChanged() { toolTipDelegate._titlesVersion++; toolTipDelegate.windowOrderChanged(); }
+        function onDataChanged() { toolTipDelegate._titlesVersion++; }
         function onRowsInserted() { toolTipDelegate._titlesVersion++; }
         function onRowsRemoved() { toolTipDelegate._titlesVersion++; }
         function onModelReset() { toolTipDelegate._titlesVersion++; }
@@ -543,13 +541,6 @@ Loader {
                     clip: false
                 }
 
-                // Re-sort when a window's data (e.g. its activation time) changes
-                Connections {
-                    target: toolTipDelegate
-                    enabled: delegateModel.recentFirst
-                    function onWindowOrderChanged() { Qt.callLater(delegateModel.sortRecentFirst); }
-                }
-
                 DelegateModel {
                     id: delegateModel
 
@@ -585,25 +576,36 @@ Loader {
                     // Optional "most recently used first" order. Only the display order of the
                     // items group changes; each delegate's index stays its source row, so
                     // submodelIndex and window actions still target the right window.
+                    // The order is set when the list is (re)populated and then kept while the
+                    // tooltip is open, so tiles never move under the cursor.
                     readonly property bool recentFirst: !!toolTipDelegate.config.tooltipRecentFirst
-                    function lastActivated(i) {
-                        const value = items.get(i).model.LastActivated;
-                        return value ? new Date(value).getTime() || 0 : 0;
-                    }
+                    property bool _sorting: false
                     function sortRecentFirst() {
-                        if (!recentFirst)
+                        if (!recentFirst || _sorting)
                             return;
-                        // Insertion sort with moves: groups are small
-                        for (let i = 1; i < items.count; ++i) {
-                            const key = lastActivated(i);
-                            let j = i;
-                            while (j > 0 && lastActivated(j - 1) < key)
-                                --j;
-                            if (j !== i)
-                                items.move(i, j, 1);
+                        _sorting = true;
+                        // Read every activation time once, then selection-sort with moves
+                        const keys = [];
+                        for (let i = 0; i < items.count; ++i) {
+                            const value = items.get(i).model.LastActivated;
+                            keys.push(value ? new Date(value).getTime() || 0 : 0);
                         }
+                        for (let target = 0; target < keys.length - 1; ++target) {
+                            let newest = target;
+                            for (let i = target + 1; i < keys.length; ++i) {
+                                if (keys[i] > keys[newest])
+                                    newest = i;
+                            }
+                            if (newest !== target) {
+                                items.move(newest, target, 1);
+                                keys.splice(target, 0, keys.splice(newest, 1)[0]);
+                            }
+                        }
+                        _sorting = false;
+                        groupToolTipListView.positionViewAtBeginning();
                     }
-                    items.onChanged: Qt.callLater(sortRecentFirst)
+                    // Windows added or removed (also the initial population); ignores our own moves
+                    items.onChanged: if (!_sorting) Qt.callLater(sortRecentFirst)
                     onRecentFirstChanged: Qt.callLater(sortRecentFirst)
 
                     delegate: ToolTipInstance {
