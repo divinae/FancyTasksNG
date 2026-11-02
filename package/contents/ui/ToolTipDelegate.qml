@@ -175,6 +175,30 @@ Loader {
     readonly property int tooltipInstanceMaximumWidth: Kirigami.Units.gridUnit * (showThumbnails ? 15 : 14)
     readonly property real thumbnailAspectRatio: 16 / 10
 
+    // Thumbnail tiles keep a fixed height and take the window's own shape for their width,
+    // so tall windows (e.g. terminals) get narrow tiles with a bigger image
+    readonly property int thumbnailBoxHeight: Math.round(Kirigami.Units.gridUnit * 15 / thumbnailAspectRatio)
+    function tileWidthFor(geometry) {
+        if (!geometry || !(geometry.width > 0) || !(geometry.height > 0))
+            return toolTipDelegate.tooltipInstanceMaximumWidth;
+        const width = thumbnailBoxHeight * geometry.width / geometry.height;
+        return Math.round(Math.max(Kirigami.Units.gridUnit * 9,
+            Math.min(width, Kirigami.Units.gridUnit * 15 * 1.5)));
+    }
+    // Sum of the tile widths of this group's windows (horizontal thumbnail list)
+    readonly property real groupTilesWidth: {
+        void toolTipDelegate._titlesVersion; // re-evaluate when windows change
+        const model = toolTipDelegate.tasksModel;
+        const parentIndex = toolTipDelegate.rootIndex;
+        if (!toolTipDelegate.isGroup || !model || !parentIndex || !parentIndex.valid)
+            return 0;
+        const count = model.rowCount(parentIndex);
+        let total = Math.max(0, count - 1) * Kirigami.Units.smallSpacing;
+        for (let i = 0; i < count; ++i)
+            total += tileWidthFor(model.data(model.index(i, 0, parentIndex), TaskManager.AbstractTasksModel.Geometry));
+        return total;
+    }
+
     property bool forceTextMode: false
 
     // Thumbnails are shown only when both the parent tooltip toggle and the thumbnail sub-option are enabled.
@@ -332,6 +356,8 @@ Loader {
                 
                 sourceComponent: ToolTipInstance {    
                     index: 0 
+                    tileWidth: singleRoot.showThumbnails && singleRoot.parentTask && singleRoot.parentTask.model
+                        ? toolTipDelegate.tileWidthFor(singleRoot.parentTask.model.Geometry) : singleRoot.tooltipInstanceMaximumWidth
                     height: implicitHeight
                     submodelIndex: singleRoot.rootIndex
                     explicitWinId: singleInstanceLoader.currentWin
@@ -404,8 +430,9 @@ Loader {
                 readonly property int maxTooltipHeight: Screen.height - Kirigami.Units.gridUnit * 2
                 readonly property real contentTargetWidth: {
                      // Use same logic as DelegateModel
-                     const count = (!groupRoot.showThumbnails || groupRoot.isVerticalPanel) ? 1 : safeCount;
-                     return Math.ceil(count * groupRoot.tooltipInstanceMaximumWidth + Math.max(0, count - 1) * Kirigami.Units.smallSpacing);
+                     if (groupRoot.showThumbnails && !groupRoot.isVerticalPanel && toolTipDelegate.groupTilesWidth > 0)
+                         return Math.ceil(toolTipDelegate.groupTilesWidth);
+                     return Math.ceil(groupRoot.tooltipInstanceMaximumWidth);
                 }
                 
                 // App name (+ badge) on the left, desktop/activity info on the right
@@ -549,8 +576,10 @@ Loader {
 
                     delegate: ToolTipInstance {
                         required property var model
-                        
-                        width: groupRoot.tooltipInstanceMaximumWidth
+
+                        tileWidth: groupRoot.showThumbnails && !groupRoot.isVerticalPanel
+                            ? toolTipDelegate.tileWidthFor(model.Geometry) : groupRoot.tooltipInstanceMaximumWidth
+                        width: tileWidth
                         height: implicitHeight
                         onImplicitHeightChanged: delegateModel.delegateHeight = Math.max(delegateModel.delegateHeight, implicitHeight)
                         Component.onCompleted: delegateModel.delegateHeight = Math.max(delegateModel.delegateHeight, implicitHeight)

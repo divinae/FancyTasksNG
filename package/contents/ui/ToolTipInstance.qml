@@ -110,6 +110,8 @@ Item {
     property string appId: ""
     required property string display
     required property bool isMinimized
+    // Width of this window's tile (thumbnail mode follows the window's shape)
+    property int tileWidth: tooltipInstanceMaximumWidth
     // This window wants attention: its tile gets a frame in the attention color
     property bool isDemandingAttention: false
     readonly property color attentionColor: root.config.attentionCustomColorEnabled
@@ -339,8 +341,8 @@ Item {
     Item {
         id: thumbnailSourceItem
 
-        readonly property int targetWidth: root.tooltipInstanceMaximumWidth
-        readonly property int targetHeight: Math.round(targetWidth / (toolTipDelegate ? toolTipDelegate.thumbnailAspectRatio : 16 / 10))
+        readonly property int targetWidth: root.tileWidth
+        readonly property int targetHeight: toolTipDelegate ? toolTipDelegate.thumbnailBoxHeight : Math.round(targetWidth / (16 / 10))
 
         Layout.preferredWidth: root.showThumbnails ? targetWidth : 0
         Layout.preferredHeight: root.showThumbnails ? targetHeight : 0
@@ -628,7 +630,7 @@ Item {
         id: tileTitleLabel
         visible: root.showThumbnails && root.tileTitle.length > 0
         Layout.fillWidth: true
-        Layout.maximumWidth: root.tooltipInstanceMaximumWidth
+        Layout.maximumWidth: root.tileWidth - Layout.leftMargin - Layout.rightMargin
         Layout.leftMargin: Kirigami.Units.smallSpacing
         Layout.rightMargin: Kirigami.Units.smallSpacing
         maximumLineCount: 2
