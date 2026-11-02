@@ -34,6 +34,27 @@ Item {
     }
     readonly property bool titleIncludesTrack: playerData && playerData.track && title.includes(playerData.track)
 
+    // In a group (e.g. several browser windows of one process), whether some window's title
+    // shows the playing track. Browsers don't tag audio streams with a window id and all their
+    // windows share one process, so the title is the only per-window hint; when one window
+    // matches, controls are shown only there instead of on every window of the app.
+    readonly property bool groupHasTrackWindow: {
+        if (!playerData || !playerData.track || !toolTipDelegate || !toolTipDelegate.isGroup)
+            return false;
+        const model = toolTipDelegate.tasksModel;
+        const parentIndex = toolTipDelegate.rootIndex;
+        if (!model || !parentIndex)
+            return false;
+        for (let i = 0; i < model.rowCount(parentIndex); ++i) {
+            const title = String(model.data(model.index(i, 0, parentIndex), Qt.DisplayRole) || "");
+            if (title.includes(playerData.track))
+                return true;
+        }
+        return false;
+    }
+    readonly property bool belongsToThisWindow: hasWindowSpecificStream(thumbnailWinId) || titleIncludesTrack
+        || (!groupHasTrackWindow && (isPlayingAudio || hasAudioStream))
+
     // Audio Streams
     property var audioStreams: []
     property bool delayAudioStreamIndicator: false
@@ -194,10 +215,11 @@ Item {
         if (!toolTipDelegate || !toolTipDelegate.isGroup || !thumbnailWinId)
             return true;
 
-        // For individual windows inside a group, require strict stream or title matching
-        return hasWindowSpecificStream(thumbnailWinId) || titleIncludesTrack || isPlayingAudio || hasAudioStream;
+        // For individual windows inside a group, prefer the window whose stream or title matches
+        return belongsToThisWindow;
     }
-    readonly property bool showVolumeControls: index !== -1 && audioStreamManager && audioStreamManager.item !== null && audioIndicatorsEnabled && (hasWindowSpecificStream(thumbnailWinId) || titleIncludesTrack || hasAudioStream)
+    readonly property bool showVolumeControls: index !== -1 && audioStreamManager && audioStreamManager.item !== null && audioIndicatorsEnabled
+        && (toolTipDelegate && toolTipDelegate.isGroup && thumbnailWinId ? belongsToThisWindow : (hasWindowSpecificStream(thumbnailWinId) || titleIncludesTrack || hasAudioStream))
     readonly property bool controlsAreEffective: config && config.showMediaControls && (showPlayerControls || showVolumeControls)
 }
 
