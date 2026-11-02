@@ -634,7 +634,7 @@ Item {
         maximumLineCount: 2
         wrapMode: Text.Wrap
         elide: Text.ElideRight
-        horizontalAlignment: Text.AlignLeft
+        horizontalAlignment: Text.AlignHCenter
         textFormat: Text.StyledText
         text: TaskTools.styledTitle(root.tileTitle, toolTipDelegate ? toolTipDelegate.titleAffixes : null,
             Kirigami.Theme.disabledTextColor.toString())
