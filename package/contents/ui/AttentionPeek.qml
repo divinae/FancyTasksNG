@@ -3,6 +3,7 @@
 */
 
 import QtQuick
+import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 import org.kde.taskmanager as TaskManager
@@ -16,9 +17,14 @@ PlasmaCore.Dialog {
     required property Item task
     required property var tasksRoot
 
-    readonly property int iconSize: Kirigami.Units.iconSizes.large
-    // Window is a bit longer than the icon in the jump direction, so the bounce has room
-    readonly property int jumpRoom: Math.round(iconSize * 0.35)
+    readonly property int iconSize: Math.round(Kirigami.Units.iconSizes.large * 1.15)
+    // At the top of a jump the icon is fully out and lifted this far above the edge (macOS Dock style)
+    readonly property int rise: Math.round(iconSize * 0.55)
+    // Room for the drop shadow
+    readonly property int shadowPad: Kirigami.Units.smallSpacing * 2
+    // Window length along the jump direction / across it
+    readonly property int alongLength: iconSize + rise + shadowPad
+    readonly property int acrossLength: iconSize + shadowPad * 2
     readonly property int edgeLocation: tasksRoot.effectiveLocation
     readonly property bool vertical: edgeLocation === PlasmaCore.Types.LeftEdge || edgeLocation === PlasmaCore.Types.RightEdge
 
@@ -58,8 +64,10 @@ PlasmaCore.Dialog {
     onVisibleChanged: if (visible) updatePosition()
 
     mainItem: Item {
-        width: peek.vertical ? peek.iconSize + peek.jumpRoom : peek.iconSize
-        height: peek.vertical ? peek.iconSize : peek.iconSize + peek.jumpRoom
+        width: peek.vertical ? peek.alongLength : peek.acrossLength
+        height: peek.vertical ? peek.acrossLength : peek.alongLength
+        // Everything beyond the window edge (= the screen edge) is hidden, so the icon
+        // appears to come out from under the screen
         clip: true
 
         Kirigami.Icon {
@@ -68,36 +76,46 @@ PlasmaCore.Dialog {
             height: peek.iconSize
             source: peek.task && peek.task.model ? peek.task.model.decoration : ""
 
-            // 0 = hidden behind the screen edge, 1 = fully out, >1 = bounce overshoot room
+            // 0 = fully hidden under the screen edge, 1 = top of the jump
             property real lift: 0
-            readonly property real travel: peek.iconSize + peek.jumpRoom
+            // Distance of the icon's edge-side boundary from the screen edge (negative = under it)
+            readonly property real offset: -peek.iconSize + lift * (peek.iconSize + peek.rise)
+
             x: {
                 switch (peek.edgeLocation) {
-                case PlasmaCore.Types.LeftEdge: return -peek.iconSize + travel * lift - peek.jumpRoom;
-                case PlasmaCore.Types.RightEdge: return parent.width - travel * lift + peek.jumpRoom;
-                default: return 0;
+                case PlasmaCore.Types.LeftEdge: return offset;
+                case PlasmaCore.Types.RightEdge: return parent.width - offset - peek.iconSize;
+                default: return peek.shadowPad;
                 }
             }
             y: {
                 switch (peek.edgeLocation) {
-                case PlasmaCore.Types.TopEdge: return -peek.iconSize + travel * lift - peek.jumpRoom;
+                case PlasmaCore.Types.TopEdge: return offset;
                 case PlasmaCore.Types.LeftEdge:
-                case PlasmaCore.Types.RightEdge: return 0;
-                default: return parent.height - travel * lift + peek.jumpRoom;
+                case PlasmaCore.Types.RightEdge: return peek.shadowPad;
+                default: return parent.height - offset - peek.iconSize;
                 }
             }
 
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowBlur: 0.6
+                shadowOpacity: 0.45
+                shadowVerticalOffset: 2
+                autoPaddingEnabled: true
+            }
+
+            // Ball-like bounce: fast up, accelerating fall back under the edge, a smaller
+            // second hop, then a short rest hidden
             SequentialAnimation on lift {
                 running: peek.visible
                 loops: Animation.Infinite
-                // Pop out of the edge, settle partly out, hop twice, then rest peeking
-                NumberAnimation { from: 0; to: 1; duration: 260; easing.type: Easing.OutQuad }
-                NumberAnimation { to: 0.75; duration: 380; easing.type: Easing.OutBounce }
-                NumberAnimation { to: 1; duration: 180; easing.type: Easing.OutQuad }
-                NumberAnimation { to: 0.75; duration: 320; easing.type: Easing.OutBounce }
-                PauseAnimation { duration: 1200 }
-                NumberAnimation { to: 0; duration: 200; easing.type: Easing.InQuad }
-                PauseAnimation { duration: 300 }
+                NumberAnimation { from: 0; to: 1; duration: 280; easing.type: Easing.OutQuad }
+                NumberAnimation { to: 0; duration: 300; easing.type: Easing.InQuad }
+                NumberAnimation { to: 0.4; duration: 170; easing.type: Easing.OutQuad }
+                NumberAnimation { to: 0; duration: 170; easing.type: Easing.InQuad }
+                PauseAnimation { duration: 700 }
             }
         }
 
