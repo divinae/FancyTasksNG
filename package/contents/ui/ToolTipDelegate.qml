@@ -356,8 +356,7 @@ Loader {
                 
                 sourceComponent: ToolTipInstance {    
                     index: 0 
-                    tileWidth: singleRoot.showThumbnails && singleRoot.parentTask && singleRoot.parentTask.model
-                        ? toolTipDelegate.tileWidthFor(singleRoot.parentTask.model.Geometry) : singleRoot.tooltipInstanceMaximumWidth
+                    // A single window keeps the fixed-size tile; only groups fit tiles to the windows
                     height: implicitHeight
                     submodelIndex: singleRoot.rootIndex
                     explicitWinId: singleInstanceLoader.currentWin
@@ -430,7 +429,7 @@ Loader {
                 readonly property int maxTooltipHeight: Screen.height - Kirigami.Units.gridUnit * 2
                 readonly property real contentTargetWidth: {
                      // Use same logic as DelegateModel
-                     if (groupRoot.showThumbnails && !groupRoot.isVerticalPanel && toolTipDelegate.groupTilesWidth > 0)
+                     if (groupRoot.showThumbnails && !groupRoot.isVerticalPanel && groupLayout.safeCount > 1 && toolTipDelegate.groupTilesWidth > 0)
                          return Math.ceil(toolTipDelegate.groupTilesWidth);
                      return Math.ceil(groupRoot.tooltipInstanceMaximumWidth);
                 }
@@ -577,7 +576,8 @@ Loader {
                     delegate: ToolTipInstance {
                         required property var model
 
-                        tileWidth: groupRoot.showThumbnails && !groupRoot.isVerticalPanel
+                        // Fit tiles to the windows' shapes only when there are several windows
+                        tileWidth: groupRoot.showThumbnails && !groupRoot.isVerticalPanel && delegateModel.count > 1
                             ? toolTipDelegate.tileWidthFor(model.Geometry) : groupRoot.tooltipInstanceMaximumWidth
                         width: tileWidth
                         height: implicitHeight
