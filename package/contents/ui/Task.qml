@@ -298,7 +298,7 @@ Item {
 
     Timer {
         id: openTimer
-        interval: 500
+        interval: task.config.tooltipDelay
         onTriggered: {
             if (task.containsMouse) {
                 task.openTooltip();
@@ -308,7 +308,9 @@ Item {
 
     Timer {
         id: switchTimer
-        interval: 150 // Small delay to allow diagonal movement without aggressive tooltip switching
+        // Small delay to allow diagonal movement without aggressive tooltip switching,
+        // never longer than the configured open delay (0 = instant)
+        interval: Math.min(150, task.config.tooltipDelay)
         onTriggered: {
             if (task.containsMouse) {
                 task.openTooltip();

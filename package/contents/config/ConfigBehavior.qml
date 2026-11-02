@@ -269,6 +269,26 @@ ConfigPage {
                 onToggled: behaviorPage.cfg_showToolTips = checked
             }
         }
+
+        RowLayout {
+            visible: enableToolTips.checked
+            Item {
+                implicitWidth: behaviorPage.gridUnit
+            }
+            Label {
+                text: Wrappers.i18n("Tooltip delay:")
+            }
+            SpinBox {
+                from: 0
+                to: 2000
+                stepSize: 50
+                value: behaviorPage.cfg_tooltipDelay
+                onValueModified: behaviorPage.cfg_tooltipDelay = value
+            }
+            Label {
+                text: Wrappers.i18nc("unit: milliseconds", "ms")
+            }
+        }
     
         RowLayout {
             visible: enableToolTips.checked

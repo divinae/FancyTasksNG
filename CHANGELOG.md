@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Tooltip Delay:** The time before a tooltip opens can be set on the Behavior page (0–2000 ms, default 500).
 - **Open at Login:** The context menu has a checkable "Open at Login" item that adds the app to (or removes it from) autostart.
 - **Window Count:** Optional number on the icon of an app with several windows (Indicators page), in the badge spot when there are no unread messages.
 - **Force Quit:** The context menu of a running app has "Force Quit" (confirmed through a submenu) for apps that stopped responding: the app is asked to quit and killed after 3 seconds if it is still running.

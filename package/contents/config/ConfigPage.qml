@@ -54,6 +54,8 @@ Kirigami.Page {
     property int cfg_maxButtonLengthDefault: 200
     property bool cfg_forceStripes: false
     property bool cfg_forceStripesDefault: false
+    property int cfg_tooltipDelay: 500
+    property int cfg_tooltipDelayDefault: 500
     property bool cfg_enableToolTips: true
     property bool cfg_enableToolTipsDefault: true
     property bool cfg_showToolTips: true
