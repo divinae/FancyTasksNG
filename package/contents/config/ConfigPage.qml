@@ -172,6 +172,8 @@ Kirigami.Page {
     property int cfg_indicatorsEnabledDefault: 0
     property int cfg_indicatorProgressStyle: 0
     property int cfg_indicatorProgressStyleDefault: 1
+    property bool cfg_indicatorProgressThemeColor: true
+    property bool cfg_indicatorProgressThemeColorDefault: true
     property string cfg_indicatorProgressColor: ""
     property string cfg_indicatorProgressColorDefault: "#00FF00"
     property int cfg_indicatorProgressThickness: 2

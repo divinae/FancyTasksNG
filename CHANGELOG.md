@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Progress Color:** The task progress indicator uses the theme's accent color by default (option on the Indicators page); the custom color is still available.
 - **Window Titles in Tooltips:** Window titles are shown under the thumbnails instead of in a small label over them (up to two lines), and in a group the part that differs between the windows is bold while the shared part (e.g. " : claude") is dimmed.
 - **Minimized Windows:** In a group, the indicator segment of a minimized window is shown in the minimized style (with "Desaturate minimized" on), and tooltips dim minimized windows and mark their thumbnails with a minimize icon.
 - **Tooltip Delay:** The time before a tooltip opens can be set on the Behavior page (0–2000 ms, default 500).

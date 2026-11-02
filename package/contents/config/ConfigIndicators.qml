@@ -631,8 +631,15 @@ ConfigPage {
             onActivated: indicatorsPage.cfg_indicatorProgressStyle = currentIndex
         }
     
-        RowLayout {
+        CheckBox {
             visible: indicatorProgressStyle.currentIndex > 0
+            text: Wrappers.i18n("Use theme accent color for progress")
+            checked: indicatorsPage.cfg_indicatorProgressThemeColor
+            onToggled: indicatorsPage.cfg_indicatorProgressThemeColor = checked
+        }
+
+        RowLayout {
+            visible: indicatorProgressStyle.currentIndex > 0 && !indicatorsPage.cfg_indicatorProgressThemeColor
             spacing: indicatorsPage.smallSpacing
             Label {
                 text: Wrappers.i18n("Progress color:")

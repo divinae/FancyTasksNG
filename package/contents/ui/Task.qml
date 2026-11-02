@@ -855,7 +855,8 @@ Item {
         source: "TaskProgressOverlay.qml"
         onLoaded: {
             item.pStyle = Qt.binding(() => task.config.indicatorProgressStyle);
-            item.pColor = Qt.binding(() => task.config.indicatorProgressColor);
+            item.pColor = Qt.binding(() => task.config.indicatorProgressThemeColor
+                ? Kirigami.Theme.highlightColor : task.config.indicatorProgressColor);
             item.pOpacity = Qt.binding(() => task.config.indicatorProgressOpacity / 100.0);
             item.pThick = Qt.binding(() => task.config.indicatorProgressThickness);
             item.pPosition = Qt.binding(() => task.taskProgress);

@@ -445,7 +445,8 @@ Item {
                                     anchors.fill: taskBackground
                                     visible: mockTask.showProgress && mockTask.cfgReady && mockTask.cfg.cfg_indicatorProgressStyle > 0
                                     pStyle: mockTask.cfgReady ? mockTask.cfg.cfg_indicatorProgressStyle : 0
-                                    pColor: mockTask.cfgReady ? mockTask.cfg.cfg_indicatorProgressColor : "transparent"
+                                    pColor: !mockTask.cfgReady ? "transparent"
+                                        : (mockTask.cfg.cfg_indicatorProgressThemeColor ? Kirigami.Theme.highlightColor : mockTask.cfg.cfg_indicatorProgressColor)
                                     pOpacity: mockTask.cfgReady ? mockTask.cfg.cfg_indicatorProgressOpacity / 100.0 : 1.0
                                     pThick: mockTask.cfgReady ? mockTask.cfg.cfg_indicatorProgressThickness : 2
                                     pPosition: 0.7

@@ -265,6 +265,10 @@
       <label>Display progress: 0:Disabled, 1:Fill L-R, 2:Fill B-T, 3:Top, 4:Bottom, 5:Left, 6:Right</label>
       <default>1</default>
     </entry>
+    <entry name="indicatorProgressThemeColor" type="Bool">
+      <label>Use the theme's accent color for the progress indicator instead of the custom color.</label>
+      <default>true</default>
+    </entry>
     <entry name="indicatorProgressColor" type="String">
       <label>Set a custom color for the task button.</label>
       <default>#00FF00</default>
