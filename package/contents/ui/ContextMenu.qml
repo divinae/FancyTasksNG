@@ -116,9 +116,15 @@ PlasmaExtras.Menu {
         return result;
     }
 
+    // Whether this app starts at login (~/.config/autostart), fetched when the menu opens
+    property bool autostartEnabled: false
+
     function show(): void {
         Plasmoid.contextualActionsAboutToShow();
         _otherAppWindows = otherAppWindows();
+        const launcherUrl = get(atm.LauncherUrlWithoutIcon);
+        if (launcherUrl)
+            DesktopActionsManager.isAutostart(launcherUrl, enabled => menu.autostartEnabled = enabled);
 
         loadDynamicLaunchActions(get(atm.LauncherUrlWithoutIcon), () => {
             menu.openRelative();
@@ -783,6 +789,22 @@ PlasmaExtras.Menu {
                 menu.visualParentChanged.connect(refresh);
                 refresh();
             }
+        }
+    }
+
+    // macOS-style "Open at Login": adds/removes the app's desktop file in ~/.config/autostart
+    PlasmaExtras.MenuItem {
+        visible: visualParent && get(atm.IsStartup) !== true && !!get(atm.LauncherUrlWithoutIcon)
+            && Plasmoid.immutability !== PlasmaCore.Types.SystemImmutable
+
+        text: Wrappers.i18nc("@item:inmenu", "Open at &Login")
+        icon: "system-run"
+        checkable: true
+        checked: menu.autostartEnabled
+
+        onClicked: {
+            DesktopActionsManager.setAutostart(get(atm.LauncherUrlWithoutIcon), !menu.autostartEnabled,
+                enabled => menu.autostartEnabled = enabled);
         }
     }
 

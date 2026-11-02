@@ -195,5 +195,26 @@ class KillAppGuardTest(unittest.TestCase):
         self.assertEqual(da.kill_app_error(2**22 + 12345), "no such process")
 
 
+class AutostartTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.desktop = Path(self.tmp.name) / "org.example.App.desktop"
+        self.desktop.write_text("[Desktop Entry]\nName=App\nExec=app\n", encoding="utf-8")
+        self.autostart = Path(self.tmp.name) / "autostart"
+
+    def test_enable_disable(self):
+        self.assertFalse(da.is_autostart(str(self.desktop), self.autostart))
+        self.assertTrue(da.set_autostart(str(self.desktop), True, self.autostart))
+        self.assertTrue((self.autostart / "org.example.App.desktop").is_file())
+        self.assertTrue(da.is_autostart(str(self.desktop), self.autostart))
+        self.assertFalse(da.set_autostart(str(self.desktop), False, self.autostart))
+        self.assertFalse(da.is_autostart(str(self.desktop), self.autostart))
+
+    def test_missing_desktop_file(self):
+        self.assertFalse(da.set_autostart(str(self.desktop) + ".nope", True, self.autostart))
+        self.assertFalse(da.set_autostart(None, True, self.autostart))
+
+
 if __name__ == "__main__":
     unittest.main()

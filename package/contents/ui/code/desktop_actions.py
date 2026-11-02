@@ -800,6 +800,14 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='b')
+    def IsAutostart(self, launcher_url):
+        return is_autostart(resolve_launcher_url(launcher_url))
+
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='sb', out_signature='b')
+    def SetAutostart(self, launcher_url, enabled):
+        return set_autostart(resolve_launcher_url(launcher_url), bool(enabled))
+
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='i', out_signature='s')
     def KillApp(self, pid):
         """Force quit an app: SIGTERM now, SIGKILL after 3 s if it is still running."""
@@ -926,6 +934,32 @@ def panel_visibility(containment_id, rc_path=None):
     except (OSError, ValueError):
         pass
     return -1
+
+
+def autostart_path(desktop_path, autostart_dir=None):
+    """Where the autostart copy of a desktop file lives (~/.config/autostart/<name>.desktop)."""
+    autostart_dir = Path(autostart_dir) if autostart_dir else Path.home() / ".config" / "autostart"
+    return autostart_dir / os.path.basename(desktop_path)
+
+
+def is_autostart(desktop_path, autostart_dir=None):
+    return bool(desktop_path) and autostart_path(desktop_path, autostart_dir).is_file()
+
+
+def set_autostart(desktop_path, enabled, autostart_dir=None):
+    """Add (copy the desktop file) or remove an app from autostart. Returns the new state."""
+    if not desktop_path or not os.path.isfile(desktop_path):
+        return False
+    target = autostart_path(desktop_path, autostart_dir)
+    try:
+        if enabled:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(desktop_path, target)
+        elif target.is_file():
+            target.unlink()
+    except OSError as e:
+        print(f"desktop_actions: autostart error: {e}", file=sys.stderr)
+    return target.is_file()
 
 
 def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):

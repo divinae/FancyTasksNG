@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Open at Login:** The context menu has a checkable "Open at Login" item that adds the app to (or removes it from) autostart.
 - **Window Count:** Optional number on the icon of an app with several windows (Indicators page), in the badge spot when there are no unread messages.
 - **Force Quit:** The context menu of a running app has "Force Quit" (confirmed through a submenu) for apps that stopped responding: the app is asked to quit and killed after 3 seconds if it is still running.
 - **Launch Bounce:** While an app is starting, its icon bounces like in the macOS Dock instead of showing a busy spinner (option on the Advanced page).

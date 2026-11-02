@@ -197,6 +197,14 @@ Item {
         _call(root._service, "PanelVisibility", [parseInt(containmentId)], "(i)", reply => callback(parseInt(reply)));
     }
 
+    function isAutostart(launcherUrl, callback) {
+        _call(root._service, "IsAutostart", [String(launcherUrl || "")], "(s)", reply => callback(reply === "true"));
+    }
+
+    function setAutostart(launcherUrl, enabled, callback) {
+        _call(root._service, "SetAutostart", [String(launcherUrl || ""), !!enabled], "(sb)", reply => callback(reply === "true"));
+    }
+
     function killApp(pid, callback) {
         _call(root._service, "KillApp", [parseInt(pid)], "(i)", callback);
     }
