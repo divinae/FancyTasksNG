@@ -747,6 +747,18 @@ Item {
                 (task.config.buttonColorizeDominant ? backgroundFrame.indicatorColor : task.config.buttonColorizeCustom)
         }
 
+        // With button backgrounds disabled there is no frame to show the attention state on;
+        // draw a soft attention-colored background instead
+        Rectangle {
+            anchors.fill: parent
+            visible: task.demandsAttention && task.config.disableButtonSvg
+            radius: Kirigami.Units.cornerRadius
+            color: {
+                const c = task.config.attentionCustomColorEnabled ? task.config.attentionCustomColor : Kirigami.Theme.neutralTextColor;
+                return Qt.rgba(c.r, c.g, c.b, 0.35);
+            }
+        }
+
         // Avoid repositioning delegate item after dragFinished
         DragHandler {
             id: dragHandler

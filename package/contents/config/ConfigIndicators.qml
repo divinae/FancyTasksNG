@@ -486,6 +486,13 @@ ConfigPage {
     
         CheckBox {
             visible: indicatorsEnabled.checked
+            text: Wrappers.i18n("Use the attention color when a window wants attention")
+            checked: indicatorsPage.cfg_indicatorAttentionColor
+            onToggled: indicatorsPage.cfg_indicatorAttentionColor = checked
+        }
+
+        CheckBox {
+            visible: indicatorsEnabled.checked
             text: Wrappers.i18n("Outline for contrast")
             checked: indicatorsPage.cfg_indicatorOutline
             onToggled: indicatorsPage.cfg_indicatorOutline = checked

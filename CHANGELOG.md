@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Attention Indicators:** While a window wants attention, its indicators switch to the attention color (custom or the theme's warning color) and are never dimmed. With task button backgrounds disabled, the task also gets a soft attention-colored background, so it is clear which app needs a click.
 - **Indicator Colors:** Indicators can use the theme's text color (dark on light themes, light on dark themes, following theme switches), and an optional outline keeps them visible on any background. The focused window's indicator opacity can be set separately.
 - **Notification Badges:** Apps that send desktop notifications now get an unread-count badge, like in the stock Task Manager, without needing the Unity LauncherEntry API. It follows the system setting "Show badges in task manager" and its per-app exceptions.
 - **Group Only When Full:** New "Only when the task manager is full" grouping option (Behavior page): windows of one app stay separate until the task bar runs out of space, as in the stock Task Manager. Labeled buttons only.

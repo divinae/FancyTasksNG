@@ -120,6 +120,14 @@ Flow {
                     indicatorsFlow.config.indicatorCustomColor
                 );
 
+                // A window wants attention: use the attention color (the user's custom one, or the
+                // theme's warning color) so it is clear which app to click, even without button backgrounds
+                const attention = indicatorsFlow.config.indicatorAttentionColor && indicatorsFlow.taskItem.demandsAttention;
+                if (attention) {
+                    colorEval = indicatorsFlow.config.attentionCustomColorEnabled
+                        ? indicatorsFlow.config.attentionCustomColor : Kirigami.Theme.neutralTextColor;
+                }
+
                 let segLength = indicatorLength;
                 let segSize = indicatorsFlow.config.indicatorSize;
 
@@ -188,7 +196,9 @@ Flow {
                 }
 
                 // 1) Highlight active window in group (applies strictly to grouped tasks)
-                if (indicatorsFlow.taskCount > 1 && indicatorsFlow.config.indicatorHighlightActive && !isActiveWindow) {
+                if (attention) {
+                    // never dim an indicator that asks for attention
+                } else if (indicatorsFlow.taskCount > 1 && indicatorsFlow.config.indicatorHighlightActive && !isActiveWindow) {
                     let groupOpacity = indicatorsFlow.config.indicatorDimInactive ? (indicatorsFlow.config.indicatorInactiveOpacity / 100.0) : 0.4;
                     colorCalc = Qt.rgba(colorCalc.r, colorCalc.g, colorCalc.b, colorCalc.a * groupOpacity);
                 }
@@ -199,7 +209,7 @@ Flow {
                 }
 
                 // 3) Opacity of the focused window's indicator (e.g. to soften a black indicator)
-                if (isActiveWindow && indicatorsFlow.config.indicatorActiveOpacity < 100) {
+                if (!attention && isActiveWindow && indicatorsFlow.config.indicatorActiveOpacity < 100) {
                     colorCalc = Qt.rgba(colorCalc.r, colorCalc.g, colorCalc.b, colorCalc.a * indicatorsFlow.config.indicatorActiveOpacity / 100.0);
                 }
 
