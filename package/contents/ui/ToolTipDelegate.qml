@@ -94,6 +94,23 @@ Loader {
         return track.length > 0 && cleaned.startsWith(track.toLowerCase());
     }
 
+    // Prefix/suffix shared by the cleaned titles of this group's windows, so tiles can
+    // emphasize what differs (see TaskTools.titleAffixes / styledTitle)
+    readonly property var titleAffixes: {
+        void toolTipDelegate._titlesVersion; // re-evaluate when titles or rows change
+        const model = toolTipDelegate.tasksModel;
+        const parentIndex = toolTipDelegate.rootIndex;
+        if (!toolTipDelegate.isGroup || !model || !parentIndex || !parentIndex.valid)
+            return {prefix: "", suffix: ""};
+        const titles = [];
+        for (let i = 0; i < model.rowCount(parentIndex); ++i) {
+            const childTitle = TaskTools.cleanWindowTitle(model.data(model.index(i, 0, parentIndex), Qt.DisplayRole), toolTipDelegate.calculatedAppName);
+            if (childTitle)
+                titles.push(childTitle);
+        }
+        return TaskTools.titleAffixes(titles);
+    }
+
     // Window ids (WinIdList[0]) in this group whose title shows the playing track
     readonly property var trackWindowIds: {
         void toolTipDelegate._titlesVersion; // re-evaluate when titles or rows change

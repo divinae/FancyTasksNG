@@ -145,44 +145,21 @@ Item {
         if (!root.isWin) {
             return toolTipDelegate.genericName;
         }
-
-        let text = display;
-        if (root.isGroup && text === "") {
+        if (root.isGroup && display === "") {
             return "";
         }
+        return TaskTools.cleanWindowTitle(display, root.calculatedAppName) || "—";
+    }
 
-        let counter = "";
-        const counterMatch = text.match(/\s*<\d+>$/);
-        if (counterMatch) {
-            counter = counterMatch[0];
-            text = text.replace(/\s*<\d+>$/, "");
-        }
-
-        const appName = root.calculatedAppName;
-        if (appName && appName.length > 0) {
-            const escapedAppName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const cleanupRegex = new RegExp(`\\s+(?:—|-|–)\\s+${escapedAppName}.*$`, "i");
-
-            if (text.match(cleanupRegex)) {
-                text = text.replace(cleanupRegex, "");
-            } else {
-                 const greedyMatch = text.match(/.*(?=\s+(—|-|–))/);
-                 if (greedyMatch) {
-                     text = greedyMatch[0];
-                 }
-            }
-        } else {
-            const greedyMatch = text.match(/.*(?=\s+(—|-|–))/);
-            if (greedyMatch) {
-                text = greedyMatch[0];
-            }
-        }
-
-        if (text === "") {
-            text = "—";
-        }
-
-        return text + counter;
+    // Title shown under a thumbnail: empty when it only repeats the app name, or when it is
+    // the playing track (the media bar shows that)
+    readonly property string tileTitle: {
+        if (!root.isWin || root.titleIncludesTrack)
+            return "";
+        const appName = root.calculatedAppName.toLowerCase();
+        if (root.title === "—" || (appName && root.title.toLowerCase() === appName))
+            return "";
+        return root.title;
     }
     required property bool isPlayingAudio
     required property bool isMuted
@@ -612,71 +589,6 @@ Item {
             }
         }
 
-        // Title Overlay (Top-Left)
-        Item {
-            id: titleOverlayContainer
-            z: 9999
-            visible: root.useOverlayStyle && root.isWin && titleOverlayLabel.text.length > 0
-            
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.margins: Kirigami.Units.smallSpacing
-            
-            // Dynamic Sizing Logic
-            readonly property int maxOverlayWidth: parent.width - (closeButtonOverlay.visible ? closeButtonOverlay.width : 0) - Kirigami.Units.largeSpacing
-            
-            // Padding Constants
-            readonly property int hPadding: Kirigami.Units.largeSpacing
-            readonly property int vPadding: Kirigami.Units.smallSpacing
-            
-            // Calculate width based on text content + padding, capped at max
-            width: Math.min(titleOverlayLabel.implicitWidth + hPadding * 2, maxOverlayWidth)
-            height: titleOverlayLabel.implicitHeight + vPadding * 2
-            
-            Rectangle {
-                anchors.fill: parent
-                // Title label of a window that wants attention uses the attention color
-                color: root.isDemandingAttention ? Qt.darker(root.attentionColor, 1.3) : Qt.rgba(0, 0, 0, 0.55)
-                radius: Kirigami.Units.cornerRadius
-            }
-            
-            // Text Layer
-            PlasmaComponents3.Label {
-                id: titleOverlayLabel
-                anchors.centerIn: parent
-                // Ensure text wraps/elides within the container minus padding
-                width: parent.width - parent.hPadding * 2
-                
-                text: {
-                    if (root.titleIncludesTrack) return ""; 
-
-                    let titleText = root.title;
-                    
-                    // Strip shortcuts like "{Meta+1}"
-                    // Regex: Space (optional) + { + anything + } + End
-                    titleText = titleText.replace(/\s*\{[^\}]*\}\s*$/, "");
-                    
-                    // Check redundancy
-                    let appName = root.calculatedAppName;
-                    if (appName && titleText.toLowerCase() === appName.toLowerCase()) {
-                        return ""; // Hide if redundant
-                    }
-                    
-                    if (!titleText && root.display !== appName) {
-                          // Fallback to display only if it's not also redundant
-                          titleText = root.display;
-                          if (titleText && titleText.toLowerCase() === appName.toLowerCase()) return "";
-                    }
-
-                    return titleText || ""; 
-                }
-                
-                elide: Text.ElideRight
-                // Always light: drawn on a dark scrim over window content
-                color: "white"
-            }
-        }
-
         // Close Button Overlay (Top-Right)
         PlasmaComponents3.ToolButton {
             id: closeButtonOverlay
@@ -708,6 +620,28 @@ Item {
                 tasksModel.requestClose(targetIndex);
             }
         }
+    }
+
+    // Window title under the thumbnail. In a group, the part that differs between the windows
+    // is bold and the shared prefix/suffix (e.g. " : claude") is dimmed.
+    PlasmaComponents3.Label {
+        id: tileTitleLabel
+        visible: root.showThumbnails && root.tileTitle.length > 0
+        Layout.fillWidth: true
+        Layout.maximumWidth: root.tooltipInstanceMaximumWidth
+        Layout.leftMargin: Kirigami.Units.smallSpacing
+        Layout.rightMargin: Kirigami.Units.smallSpacing
+        maximumLineCount: 2
+        wrapMode: Text.Wrap
+        elide: Text.ElideRight
+        horizontalAlignment: Text.AlignLeft
+        textFormat: Text.StyledText
+        text: TaskTools.styledTitle(root.tileTitle, toolTipDelegate ? toolTipDelegate.titleAffixes : null,
+            Kirigami.Theme.disabledTextColor.toString())
+        // Attention: attention color; minimized: dimmed and italic
+        color: root.isDemandingAttention ? root.attentionColor : Kirigami.Theme.textColor
+        opacity: root.isMinimized ? 0.6 : 1
+        font.italic: root.isMinimized
     }
 
     // UNDER-THUMBNAIL MEDIA BAR

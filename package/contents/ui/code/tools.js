@@ -51,6 +51,83 @@ function locationSubTextEntries(i18nc, config, virtualDesktopInfo, activityInfo,
     return entries;
 }
 
+// Window title without the app-name suffix ("Doc — Kate" -> "Doc") or a trailing
+// "{Meta+1}" shortcut; a "<2>" duplicate counter is kept.
+function cleanWindowTitle(display, appName) {
+    let text = String(display || "");
+    let counter = "";
+    const counterMatch = text.match(/\s*<\d+>$/);
+    if (counterMatch) {
+        counter = counterMatch[0];
+        text = text.replace(/\s*<\d+>$/, "");
+    }
+    text = text.replace(/\s*\{[^\}]*\}\s*$/, "");
+
+    let cleaned = false;
+    if (appName && appName.length > 0) {
+        const escapedAppName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const cleanupRegex = new RegExp(`\\s+(?:—|-|–)\\s+${escapedAppName}.*$`, "i");
+        if (cleanupRegex.test(text)) {
+            text = text.replace(cleanupRegex, "");
+            cleaned = true;
+        }
+    }
+    if (!cleaned) {
+        const greedyMatch = text.match(/.*(?=\s+(—|-|–))/);
+        if (greedyMatch)
+            text = greedyMatch[0];
+    }
+    return text + counter;
+}
+
+// Prefix and suffix shared by all titles (cut at separators such as spaces, ":" or "-"),
+// e.g. ["repo-a : claude", "repo-b : claude"] -> {prefix: "", suffix: " : claude"}.
+// Empty when fewer than two titles or when stripping would leave a title empty.
+function titleAffixes(titles) {
+    const none = {prefix: "", suffix: ""};
+    if (!titles || titles.length < 2)
+        return none;
+    const isSeparator = c => /[\s:;,|\/\-–—·•()\[\]]/.test(c);
+
+    let prefix = titles[0];
+    for (const t of titles)
+        while (!t.startsWith(prefix))
+            prefix = prefix.slice(0, -1);
+    // Keep only up to the last separator, so a word is never split
+    let cut = prefix.length;
+    while (cut > 0 && !isSeparator(prefix[cut - 1]))
+        cut--;
+    prefix = prefix.slice(0, cut);
+
+    let suffix = titles[0];
+    for (const t of titles)
+        while (!t.endsWith(suffix))
+            suffix = suffix.slice(1);
+    let start = 0;
+    while (start < suffix.length && !isSeparator(suffix[start]))
+        start++;
+    suffix = suffix.slice(start);
+
+    if (titles.some(t => t.length <= prefix.length + suffix.length))
+        return none;
+    return {prefix: prefix, suffix: suffix};
+}
+
+function _escapeHtml(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// StyledText for a title: the part that differs between a group's windows in bold, the
+// shared prefix/suffix in dimColor; the whole title in bold when nothing is shared.
+function styledTitle(title, affixes, dimColor) {
+    const prefix = affixes && title.startsWith(affixes.prefix) ? affixes.prefix : "";
+    const suffix = affixes && title.endsWith(affixes.suffix) && title.length > prefix.length + affixes.suffix.length
+        ? affixes.suffix : "";
+    const middle = title.slice(prefix.length, title.length - suffix.length);
+    const dim = part => part ? `<font color="${dimColor}">${_escapeHtml(part)}</font>` : "";
+    return dim(prefix) + "<b>" + _escapeHtml(middle) + "</b>" + dim(suffix);
+}
+
 // Source-model index of the child of a group task that owns winId, or null.
 // parentTask.index is a row in the filtered view, so the group's source row comes from modelIndex().
 function childIndexForWindow(tasksModel, parentTask, winId) {
