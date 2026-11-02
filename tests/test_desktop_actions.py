@@ -199,21 +199,61 @@ class AutostartTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.desktop = Path(self.tmp.name) / "org.example.App.desktop"
+        root = Path(self.tmp.name)
+        self.apps = root / "applications"
+        (self.apps / "kde4").mkdir(parents=True)
+        self.desktop = self.apps / "org.example.App.desktop"
         self.desktop.write_text("[Desktop Entry]\nName=App\nExec=app\n", encoding="utf-8")
-        self.autostart = Path(self.tmp.name) / "autostart"
+        self.autostart = root / "autostart"
+        self.system = root / "xdg-autostart"
+        self.system.mkdir()
+        self.kw = dict(autostart_dir=self.autostart, system_dirs=[str(self.system)], app_dirs=[str(self.apps)])
 
-    def test_enable_disable(self):
-        self.assertFalse(da.is_autostart(str(self.desktop), self.autostart))
-        self.assertTrue(da.set_autostart(str(self.desktop), True, self.autostart))
-        self.assertTrue((self.autostart / "org.example.App.desktop").is_file())
-        self.assertTrue(da.is_autostart(str(self.desktop), self.autostart))
-        self.assertFalse(da.set_autostart(str(self.desktop), False, self.autostart))
-        self.assertFalse(da.is_autostart(str(self.desktop), self.autostart))
+    def entry(self):
+        return (self.autostart / "org.example.App.desktop").read_text(encoding="utf-8")
 
-    def test_missing_desktop_file(self):
-        self.assertFalse(da.set_autostart(str(self.desktop) + ".nope", True, self.autostart))
-        self.assertFalse(da.set_autostart(None, True, self.autostart))
+    def test_enable_disable_own_entry(self):
+        self.assertFalse(da.is_autostart(str(self.desktop), **self.kw))
+        self.assertTrue(da.set_autostart(str(self.desktop), True, **self.kw))
+        self.assertIn(da.AUTOSTART_MARKER, self.entry())
+        self.assertFalse(da.set_autostart(str(self.desktop), False, **self.kw))
+        self.assertFalse((self.autostart / "org.example.App.desktop").exists())
+
+    def test_hand_made_entry_is_hidden_not_deleted(self):
+        self.autostart.mkdir()
+        (self.autostart / "org.example.App.desktop").write_text(
+            "[Desktop Entry]\nName=App\nExec=app --custom\n", encoding="utf-8")
+        self.assertTrue(da.is_autostart(str(self.desktop), **self.kw))
+        self.assertFalse(da.set_autostart(str(self.desktop), False, **self.kw))
+        self.assertIn("Hidden=true", self.entry())
+        self.assertIn("--custom", self.entry())
+        self.assertTrue(da.set_autostart(str(self.desktop), True, **self.kw))
+        self.assertNotIn("Hidden", self.entry())
+        self.assertIn("--custom", self.entry())
+
+    def test_system_entry_disabled_with_override(self):
+        (self.system / "org.example.App.desktop").write_text("[Desktop Entry]\nName=App\nExec=app\n", encoding="utf-8")
+        self.assertTrue(da.is_autostart(str(self.desktop), **self.kw))
+        self.assertFalse(da.set_autostart(str(self.desktop), False, **self.kw))
+        self.assertIn("Hidden=true", self.entry())
+        self.assertTrue(da.set_autostart(str(self.desktop), True, **self.kw))
+
+    def test_gnome_disabled_flag(self):
+        self.autostart.mkdir()
+        (self.autostart / "org.example.App.desktop").write_text(
+            "[Desktop Entry]\nName=App\nExec=app\nX-GNOME-Autostart-enabled=false\n", encoding="utf-8")
+        self.assertFalse(da.is_autostart(str(self.desktop), **self.kw))
+
+    def test_only_desktop_files(self):
+        script = Path(self.tmp.name) / "script.sh"
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
+        self.assertFalse(da.set_autostart(str(script), True, **self.kw))
+        self.assertFalse(self.autostart.exists())
+        self.assertFalse(da.set_autostart(None, True, **self.kw))
+
+    def test_desktop_file_id_from_subdirectory(self):
+        sub = self.apps / "kde4" / "foo.desktop"
+        self.assertEqual(da.desktop_file_id(str(sub), [str(self.apps)]), "kde4-foo.desktop")
 
 
 if __name__ == "__main__":

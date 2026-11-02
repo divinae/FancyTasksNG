@@ -936,30 +936,104 @@ def panel_visibility(containment_id, rc_path=None):
     return -1
 
 
-def autostart_path(desktop_path, autostart_dir=None):
-    """Where the autostart copy of a desktop file lives (~/.config/autostart/<name>.desktop)."""
+AUTOSTART_MARKER = "X-FancyTasksNG-Autostart"
+SYSTEM_AUTOSTART_DIRS = ["/etc/xdg/autostart"]
+
+
+def desktop_file_id(desktop_path, app_dirs=None):
+    """Desktop file ID per the XDG spec: path relative to an applications dir, '/' -> '-'."""
+    path = os.path.abspath(desktop_path)
+    for app_dir in (app_dirs or DESKTOP_DIRS):
+        app_dir = os.path.abspath(app_dir)
+        if path.startswith(app_dir + os.sep):
+            return os.path.relpath(path, app_dir).replace(os.sep, "-")
+    return os.path.basename(path)
+
+
+def autostart_path(desktop_path, autostart_dir=None, app_dirs=None):
+    """Where the user autostart entry of a desktop file lives (~/.config/autostart/<id>)."""
     autostart_dir = Path(autostart_dir) if autostart_dir else Path.home() / ".config" / "autostart"
-    return autostart_dir / os.path.basename(desktop_path)
+    return autostart_dir / desktop_file_id(desktop_path, app_dirs)
 
 
-def is_autostart(desktop_path, autostart_dir=None):
-    return bool(desktop_path) and autostart_path(desktop_path, autostart_dir).is_file()
-
-
-def set_autostart(desktop_path, enabled, autostart_dir=None):
-    """Add (copy the desktop file) or remove an app from autostart. Returns the new state."""
-    if not desktop_path or not os.path.isfile(desktop_path):
-        return False
-    target = autostart_path(desktop_path, autostart_dir)
+def _read_entry(path):
+    cp = configparser.RawConfigParser(interpolation=None)
+    cp.optionxform = str
     try:
+        cp.read(path, encoding="utf-8")
+    except (configparser.Error, OSError, UnicodeDecodeError):
+        return None
+    return cp if cp.has_section("Desktop Entry") else None
+
+
+def _entry_enabled(cp):
+    entry = cp["Desktop Entry"]
+    return (entry.get("Hidden", "false").strip().lower() != "true"
+            and entry.get("X-GNOME-Autostart-enabled", "true").strip().lower() != "false")
+
+
+def _write_entry(cp, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        cp.write(f, space_around_delimiters=False)
+
+
+def is_autostart(desktop_path, autostart_dir=None, system_dirs=None, app_dirs=None):
+    """Whether the app starts at login: the user entry decides (it can disable a system entry
+    with Hidden=true); otherwise a system-wide /etc/xdg/autostart entry counts."""
+    if not desktop_path or not str(desktop_path).endswith(".desktop"):
+        return False
+    user = autostart_path(desktop_path, autostart_dir, app_dirs)
+    if user.is_file():
+        cp = _read_entry(user)
+        return bool(cp) and _entry_enabled(cp)
+    file_id = desktop_file_id(desktop_path, app_dirs)
+    for system_dir in (SYSTEM_AUTOSTART_DIRS if system_dirs is None else system_dirs):
+        cp = _read_entry(Path(system_dir) / file_id)
+        if cp:
+            return _entry_enabled(cp)
+    return False
+
+
+def set_autostart(desktop_path, enabled, autostart_dir=None, system_dirs=None, app_dirs=None):
+    """Turn autostart on/off without destroying entries the user wrote themselves.
+
+    On: re-enable an existing user entry (drop Hidden / X-GNOME-Autostart-enabled=false), or copy
+    the app's desktop file, marked as ours. Off: delete the entry only if we created it; otherwise
+    (hand-made entry, or a system-wide one) write/keep a user entry with Hidden=true.
+    Returns the resulting state.
+    """
+    if not desktop_path or not str(desktop_path).endswith(".desktop") or not os.path.isfile(desktop_path):
+        return False
+    user = autostart_path(desktop_path, autostart_dir, app_dirs)
+    try:
+        cp = _read_entry(user) if user.is_file() else None
         if enabled:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(desktop_path, target)
-        elif target.is_file():
-            target.unlink()
+            if cp:
+                entry = cp["Desktop Entry"]
+                entry.pop("Hidden", None)
+                if entry.get("X-GNOME-Autostart-enabled", "").strip().lower() == "false":
+                    entry["X-GNOME-Autostart-enabled"] = "true"
+                _write_entry(cp, user)
+            elif not is_autostart(desktop_path, autostart_dir, system_dirs, app_dirs):
+                cp = _read_entry(desktop_path)
+                if not cp:
+                    return False
+                cp["Desktop Entry"][AUTOSTART_MARKER] = "true"
+                _write_entry(cp, user)
+        else:
+            if cp and cp["Desktop Entry"].get(AUTOSTART_MARKER) == "true":
+                user.unlink()
+            elif cp or is_autostart(desktop_path, autostart_dir, system_dirs, app_dirs):
+                if not cp:
+                    cp = _read_entry(desktop_path)
+                    if not cp:
+                        return False
+                cp["Desktop Entry"]["Hidden"] = "true"
+                _write_entry(cp, user)
     except OSError as e:
         print(f"desktop_actions: autostart error: {e}", file=sys.stderr)
-    return target.is_file()
+    return is_autostart(desktop_path, autostart_dir, system_dirs, app_dirs)
 
 
 def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):

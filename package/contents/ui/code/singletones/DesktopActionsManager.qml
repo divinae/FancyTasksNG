@@ -197,12 +197,22 @@ Item {
         _call(root._service, "PanelVisibility", [parseInt(containmentId)], "(i)", reply => callback(parseInt(reply)));
     }
 
+    // Autostart state as true/false, or null if the helper could not be reached
+    function _boolReply(reply) {
+        return reply === "true" ? true : (reply === "false" ? false : null);
+    }
+
     function isAutostart(launcherUrl, callback) {
-        _call(root._service, "IsAutostart", [String(launcherUrl || "")], "(s)", reply => callback(reply === "true"));
+        _call(root._service, "IsAutostart", [String(launcherUrl || "")], "(s)", reply => callback(_boolReply(reply)));
     }
 
     function setAutostart(launcherUrl, enabled, callback) {
-        _call(root._service, "SetAutostart", [String(launcherUrl || ""), !!enabled], "(sb)", reply => callback(reply === "true"));
+        _call(root._service, "SetAutostart", [String(launcherUrl || ""), !!enabled], "(sb)", reply => {
+            if (_boolReply(reply) === null)
+                console.warn("FancyTasksNG: changing autostart failed:", reply);
+            if (callback)
+                callback(_boolReply(reply));
+        });
     }
 
     function killApp(pid, callback) {

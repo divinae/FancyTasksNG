@@ -116,17 +116,21 @@ PlasmaExtras.Menu {
         return result;
     }
 
-    // Whether this app starts at login (~/.config/autostart), fetched when the menu opens
-    property bool autostartEnabled: false
+    // Whether this app starts at login, fetched when the menu opens. The item stays disabled
+    // until the answer arrives (null = unknown / helper unavailable), so a click can't act on
+    // a stale value.
+    property var autostartEnabled: null
 
     function show(): void {
         Plasmoid.contextualActionsAboutToShow();
         _otherAppWindows = otherAppWindows();
-        const launcherUrl = get(atm.LauncherUrlWithoutIcon);
-        if (launcherUrl)
+        // QUrl objects are always truthy, so test the string form
+        const launcherUrl = String(get(atm.LauncherUrlWithoutIcon) || "");
+        menu.autostartEnabled = null;
+        if (launcherUrl !== "")
             DesktopActionsManager.isAutostart(launcherUrl, enabled => menu.autostartEnabled = enabled);
 
-        loadDynamicLaunchActions(get(atm.LauncherUrlWithoutIcon), () => {
+        loadDynamicLaunchActions(launcherUrl, () => {
             menu.openRelative();
         });
     }
@@ -794,18 +798,17 @@ PlasmaExtras.Menu {
 
     // macOS-style "Open at Login": adds/removes the app's desktop file in ~/.config/autostart
     PlasmaExtras.MenuItem {
-        visible: visualParent && get(atm.IsStartup) !== true && !!get(atm.LauncherUrlWithoutIcon)
+        visible: visualParent && get(atm.IsStartup) !== true && String(get(atm.LauncherUrlWithoutIcon) || "") !== ""
             && Plasmoid.immutability !== PlasmaCore.Types.SystemImmutable
 
         text: Wrappers.i18nc("@item:inmenu", "Open at &Login")
         icon: "system-run"
         checkable: true
-        checked: menu.autostartEnabled
+        enabled: menu.autostartEnabled !== null
+        checked: menu.autostartEnabled === true
 
-        onClicked: {
-            DesktopActionsManager.setAutostart(get(atm.LauncherUrlWithoutIcon), !menu.autostartEnabled,
-                enabled => menu.autostartEnabled = enabled);
-        }
+        // The menu closes (and is destroyed) on click, so the reply is not written back to it
+        onClicked: DesktopActionsManager.setAutostart(String(get(atm.LauncherUrlWithoutIcon)), menu.autostartEnabled !== true, null)
     }
 
     PlasmaExtras.MenuItem {
