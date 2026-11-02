@@ -192,6 +192,11 @@ Item {
         _call("io.github.daydve.fancytasksng.Config", "ImportConfig", [String(path || "")], "(s)", callback);
     }
 
+    // Visibility mode of the panel with this containment id (see desktop_actions.panel_visibility)
+    function panelVisibility(containmentId, callback) {
+        _call(root._service, "PanelVisibility", [parseInt(containmentId)], "(i)", reply => callback(parseInt(reply)));
+    }
+
     function openUrl(url, launcherUrl) {
         _call(root._service, "OpenUrl", [String(url || ""), String(launcherUrl || "")], "(ss)", null);
     }

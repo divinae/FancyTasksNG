@@ -800,6 +800,15 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='i', out_signature='i')
+    def PanelVisibility(self, containment_id):
+        """Visibility mode of a panel from plasmashellrc, or -1 if unknown.
+
+        0 = always visible, 1 = auto-hide, 2 = windows can cover, 3 = windows go below,
+        4 = dodge windows.
+        """
+        return panel_visibility(containment_id)
+
     @dbus.service.method('io.github.daydve.fancytasksng.Config', in_signature='ss', out_signature='s')
     def ExportConfig(self, path, content):
         try:
@@ -876,6 +885,23 @@ def expand_exec(exec_cmd, url=None):
     if url and not used_url:
         argv.append(url)
     return argv
+
+
+def panel_visibility(containment_id, rc_path=None):
+    """Read panelVisibility of [PlasmaViews][Panel <id>] from plasmashellrc (-1 if unknown)."""
+    rc_path = rc_path or (Path.home() / ".config" / "plasmashellrc")
+    header = f"[PlasmaViews][Panel {int(containment_id)}]"
+    try:
+        in_group = False
+        for line in Path(rc_path).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("["):
+                in_group = line == header
+            elif in_group and line.startswith("panelVisibility="):
+                return int(line.split("=", 1)[1])
+    except (OSError, ValueError):
+        pass
+    return -1
 
 
 def get_desktop_exec(desktop_path):

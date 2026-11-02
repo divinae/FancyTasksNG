@@ -161,5 +161,20 @@ class HistoryTest(unittest.TestCase):
         self.assertFalse(temp.exists())
 
 
+class PanelVisibilityTest(unittest.TestCase):
+    def test_reads_group(self):
+        with tempfile.NamedTemporaryFile("w", suffix="rc", delete=False) as f:
+            f.write("[PlasmaViews][Panel 275]\npanelVisibility=0\n\n"
+                    "[PlasmaViews][Panel 416]\nfloating=1\npanelVisibility=1\n\n"
+                    "[PlasmaViews][Panel 416][Defaults]\npanelVisibility=3\n")
+        self.addCleanup(os.unlink, f.name)
+        self.assertEqual(da.panel_visibility(416, f.name), 1)
+        self.assertEqual(da.panel_visibility(275, f.name), 0)
+        self.assertEqual(da.panel_visibility(999, f.name), -1)
+
+    def test_missing_file(self):
+        self.assertEqual(da.panel_visibility(1, "/nonexistent/plasmashellrc"), -1)
+
+
 if __name__ == "__main__":
     unittest.main()

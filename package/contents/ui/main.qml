@@ -852,6 +852,67 @@ PlasmoidItem {
         }
     }
 
+    // --- Attention peek (icon bouncing out of the screen edge for auto-hidden panels) ---
+    // Panel visibility mode from plasmashellrc via the helper: 1 = auto-hide, 4 = dodge windows
+    property int panelVisibility: -1
+    readonly property bool panelAutoHides: panelVisibility === 1 || panelVisibility === 4
+    Timer {
+        interval: 10000
+        repeat: true
+        triggeredOnStart: true
+        running: tasks.config.attentionPeek && !!Plasmoid.containment
+        onTriggered: DesktopActionsManager.panelVisibility(Plasmoid.containment.id, value => tasks.panelVisibility = value)
+    }
+
+    readonly property bool attentionPeekWanted: tasks.config.attentionPeek && tasks.panelAutoHides
+        && tasks.effectiveLocation !== PlasmaCore.Types.Floating
+        && !!tasks.tasksModel && (tasks.tasksModel.anyTaskDemandsAttention || BadgeManager.anyUrgent)
+
+    // Whether the auto-hidden panel is currently on screen: a shown panel renders the small
+    // heartbeat below, a hidden one gets no frame callbacks from the compositor and stops.
+    property bool panelOnScreen: true
+    property double lastPanelFrame: 0
+    property bool activeWindowFullScreen: false
+    readonly property bool showAttentionPeek: attentionPeekWanted && !panelOnScreen && !activeWindowFullScreen
+
+    Connections {
+        target: tasks.attentionPeekWanted ? tasks.Window.window : null
+        function onFrameSwapped() {
+            tasks.lastPanelFrame = Date.now();
+            tasks.panelOnScreen = true;
+        }
+    }
+
+    // Heartbeat: a nearly invisible 1px change every 150 ms (~7 redraws/s, not every vsync)
+    Rectangle {
+        id: attentionHeartbeat
+        width: 1
+        height: 1
+        color: "black"
+        opacity: 0.002
+        visible: tasks.attentionPeekWanted
+    }
+    Timer {
+        interval: 150
+        repeat: true
+        running: tasks.attentionPeekWanted
+        onTriggered: {
+            attentionHeartbeat.opacity = attentionHeartbeat.opacity > 0.003 ? 0.002 : 0.004;
+            // No frame for a while: the panel is hidden. 500 ms tolerates short render stalls.
+            tasks.panelOnScreen = Date.now() - tasks.lastPanelFrame < 500;
+            const active = tasks.tasksModel.activeTask;
+            tasks.activeWindowFullScreen = !!active && active.valid
+                && tasks.tasksModel.data(active, TaskManager.AbstractTasksModel.IsFullScreen) === true;
+        }
+        onRunningChanged: {
+            if (running) {
+                // Assume shown until proven hidden, so a visible panel never flashes the peek
+                tasks.lastPanelFrame = Date.now();
+                tasks.panelOnScreen = true;
+            }
+        }
+    }
+
     Component.onCompleted: {
         TaskTools.taskManagerInstanceCount += 1;
         requestLayout.connect(iconGeometryTimer.restart);
