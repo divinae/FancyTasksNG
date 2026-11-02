@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Window Count:** Optional number on the icon of an app with several windows (Indicators page), in the badge spot when there are no unread messages.
 - **Force Quit:** The context menu of a running app has "Force Quit" (confirmed through a submenu) for apps that stopped responding: the app is asked to quit and killed after 3 seconds if it is still running.
 - **Launch Bounce:** While an app is starting, its icon bounces like in the macOS Dock instead of showing a busy spinner (option on the Advanced page).
 - **Attention Peek:** New option (Advanced page) for auto-hidden panels: instead of unhiding the whole panel when an app wants attention, only that app's icon bounces out of the screen edge where it sits in the panel. Clicking it switches to the window that asked for attention.

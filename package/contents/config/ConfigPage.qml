@@ -248,6 +248,8 @@ Kirigami.Page {
     property bool cfg_iconScaleFromEdgeDefault: true
     property int cfg_iconEdgeOffset: 0
     property int cfg_iconEdgeOffsetDefault: 0
+    property bool cfg_showWindowCount: false
+    property bool cfg_showWindowCountDefault: false
     property bool cfg_showBadges: true
     property bool cfg_showBadgesDefault: true
     property bool cfg_badgeHighlightNew: true

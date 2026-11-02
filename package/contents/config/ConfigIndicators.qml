@@ -525,6 +525,12 @@ ConfigPage {
             checked: indicatorsPage.cfg_showBadges
             onToggled: indicatorsPage.cfg_showBadges = checked
         }
+
+        CheckBox {
+            text: Wrappers.i18n("Show the number of windows on apps with several windows")
+            checked: indicatorsPage.cfg_showWindowCount
+            onToggled: indicatorsPage.cfg_showWindowCount = checked
+        }
     
         RowLayout {
             visible: cfg_showBadges.checked

@@ -180,4 +180,42 @@ Item {
         fontFactor: 0.7
         showNumber: !root.dotMode
     }
+
+    // ── Window Count Badge ─────────────────────────────────────────
+    // Same place and look as the notification badge; shown only when there is no unread badge
+    Badge {
+        id: windowCountBadge
+
+        readonly property real idealCenterX: root.notifBaseCX + root.diveDx
+        readonly property real idealY: root.notifBaseCY + root.diveDy
+
+        x: root.iconsOnly
+            ? (idealCenterX - width / 2)
+            : (root.boxW - width)
+        y: root.iconsOnly
+            ? idealY
+            : 0
+
+        Behavior on x {
+            enabled: root.iconsOnly
+            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+        }
+        Behavior on y {
+            enabled: root.iconsOnly
+            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+        }
+
+        height: root.iconsOnly
+            ? root.effectiveBadgeDiam
+            : Math.round(Kirigami.Units.gridUnit * 0.85)
+
+        visible: root.config.showWindowCount && !root.parentTask?.badgeVisible && (root.parentTask?.childCount || 0) >= 2
+        number: root.parentTask?.childCount || 0
+
+        isUrgent: false
+        isRound: true
+        isBold: false
+        fontFactor: 0.7
+        showNumber: true
+    }
 }
