@@ -155,8 +155,8 @@ Flow {
                 let segLength = indicatorLength;
                 let segSize = indicatorsFlow.config.indicatorSize;
 
-                // 1. Active styling
-                if (isActiveWindow) {
+                // 1. Active styling (a segment that wants attention is sized like the active one)
+                if (isActiveWindow || attention) {
                     if (indicatorsFlow.config.indicatorResize) {
                         if (indicatorsFlow.taskCount > 1 && indicatorsFlow.config.indicatorGroupSeparate) {
                             segLength = indicatorsFlow.config.indicatorGroupLength;

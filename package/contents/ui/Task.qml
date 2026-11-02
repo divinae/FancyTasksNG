@@ -585,12 +585,19 @@ Item {
     // draw a soft attention-colored background. Declared before the indicators so they
     // stay on top, and light enough that attention-colored indicators remain visible.
     Rectangle {
+        id: attentionBackground
         anchors.fill: backgroundFrame
         visible: task.demandsAttention && task.config.disableButtonSvg
         radius: Kirigami.Units.cornerRadius
-        color: {
-            const c = task.config.attentionCustomColorEnabled ? task.config.attentionCustomColor : Kirigami.Theme.neutralTextColor;
-            return Qt.rgba(c.r, c.g, c.b, 0.2);
+        color: task.config.attentionCustomColorEnabled ? task.config.attentionCustomColor : Kirigami.Theme.neutralTextColor
+
+        // Gentle pulse so a waiting app catches the eye without being harsh
+        SequentialAnimation on opacity {
+            running: attentionBackground.visible
+            loops: Animation.Infinite
+            alwaysRunToEnd: false
+            NumberAnimation { from: 0.3; to: 0.6; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 0.6; to: 0.3; duration: 900; easing.type: Easing.InOutSine }
         }
     }
 
