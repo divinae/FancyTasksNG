@@ -80,6 +80,14 @@ function cleanWindowTitle(display, appName) {
     return text + counter;
 }
 
+// A window title "shows" a track if it starts with it, ignoring a "(3) " unread prefix, so
+// "Numb lyrics - Google Search" doesn't claim the track "Numb"
+function titleShowsTrack(windowTitle, track) {
+    track = String(track || "").trim();
+    const cleaned = String(windowTitle || "").replace(/^\(\d+\)\s*/, "").toLowerCase();
+    return track.length > 0 && cleaned.startsWith(track.toLowerCase());
+}
+
 // Prefix and suffix shared by all titles (cut at separators such as spaces, ":" or "-"),
 // e.g. ["repo-a : claude", "repo-b : claude"] -> {prefix: "", suffix: " : claude"}.
 // Empty when fewer than two titles or when stripping would leave a title empty.

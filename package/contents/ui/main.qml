@@ -541,6 +541,81 @@ PlasmoidItem {
         id: mpris2SourceModel
     }
 
+    // All MPRIS players, to match a player to the window that actually shows its track.
+    // A browser exposes its media through plasma-browser-integration under the browser's own
+    // desktop entry, so a web app window (e.g. a Spotify app run by the same browser) would
+    // otherwise never get it, while the main browser window always would.
+    property var mprisPlayers: []
+    Instantiator {
+        model: mpris2SourceModel
+        delegate: QtObject {
+            required property var container
+        }
+        onObjectAdded: (index, object) => tasks.mprisPlayers = tasks.mprisPlayers.concat([object.container])
+        onObjectRemoved: (index, object) => tasks.mprisPlayers = tasks.mprisPlayers.filter(p => p !== object.container)
+    }
+
+    // {launcherUrl: track} for open web app windows playing from a browser player's site,
+    // refreshed when a tooltip opens
+    property var webAppTracks: ({})
+    function refreshWebAppTracks() {
+        const urls = [];
+        const model = tasks.tasksModel;
+        const walk = parent => {
+            for (let row = 0; row < model.rowCount(parent); ++row) {
+                const idx = model.index(row, 0, parent);
+                if (model.data(idx, TaskManager.AbstractTasksModel.IsGroupParent))
+                    walk(idx);
+                const url = String(model.data(idx, TaskManager.AbstractTasksModel.LauncherUrlWithoutIcon) || "");
+                if (url && urls.indexOf(url) === -1)
+                    urls.push(url);
+            }
+        };
+        walk(model.index(-1, -1));
+        DesktopActionsManager.webAppTracks(urls, map => tasks.webAppTracks = map);
+    }
+
+    // The player playing a given track, or null
+    function playerWithTrack(track) {
+        for (const player of tasks.mprisPlayers) {
+            if (player && track && player.track === track)
+                return player;
+        }
+        return null;
+    }
+
+    // A player whose current track this window title shows, or null
+    function playerShownInTitle(windowTitle) {
+        for (const player of tasks.mprisPlayers) {
+            if (player && TaskTools.titleShowsTrack(windowTitle, player.track))
+                return player;
+        }
+        return null;
+    }
+
+    // Whether some window other than excludeWinId shows the track in its title
+    function trackShownInOtherWindow(track, excludeWinId) {
+        if (!String(track || "").trim())
+            return false;
+        const model = tasks.tasksModel;
+        const walk = parent => {
+            for (let row = 0; row < model.rowCount(parent); ++row) {
+                const idx = model.index(row, 0, parent);
+                if (model.data(idx, TaskManager.AbstractTasksModel.IsGroupParent)) {
+                    if (walk(idx))
+                        return true;
+                    continue;
+                }
+                const winIds = model.data(idx, TaskManager.AbstractTasksModel.WinIdList) || [];
+                if (winIds.length > 0 && winIds.indexOf(excludeWinId) === -1
+                        && TaskTools.titleShowsTrack(model.data(idx, Qt.DisplayRole), track))
+                    return true;
+            }
+            return false;
+        };
+        return walk(model.index(-1, -1));
+    }
+
     function handleItemRemoval(taskItem) {
         if (!taskItem || !taskItem.model)
             return;

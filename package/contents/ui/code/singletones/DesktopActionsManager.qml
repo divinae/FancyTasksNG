@@ -231,6 +231,18 @@ Item {
         });
     }
 
+    // {launcherUrl: track} for open browser web app windows whose site a browser player is
+    // playing from (see desktop_actions.web_app_tracks)
+    function webAppTracks(launcherUrls, callback) {
+        _call(root._service, "WebAppTracks", [launcherUrls], "(as)", reply => {
+            try {
+                callback(reply.startsWith("{") ? JSON.parse(reply) : {});
+            } catch (e) {
+                callback({});
+            }
+        });
+    }
+
     function killApp(pid, callback) {
         _call(root._service, "KillApp", [parseInt(pid)], "(i)", callback);
     }

@@ -822,6 +822,16 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='as', out_signature='s')
+    def WebAppTracks(self, launcher_urls):
+        """JSON {launcherUrl: track} for open browser web app windows (e.g. a Spotify app)
+        whose site is what a browser MPRIS player is playing from."""
+        try:
+            tracks = mpris_url_tracks(self.bus)
+        except dbus.exceptions.DBusException:
+            tracks = []
+        return json.dumps(web_app_tracks([str(u) for u in launcher_urls], tracks))
+
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='i')
     def AutostartState(self, launcher_url):
         """1 = starts at login, 0 = doesn't, -1 = not manageable (no desktop file)."""
@@ -979,6 +989,62 @@ def desktop_file_id(desktop_path, app_dirs=None):
         if path.startswith(app_dir + os.sep):
             return os.path.relpath(path, app_dir).replace(os.sep, "-")
     return os.path.basename(path)
+
+
+def url_host(url):
+    """Host of a URL without a leading "www.", lowercased ("" if none)."""
+    host = (urlparse(str(url)).hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def web_app_host(desktop_path):
+    """Host of a browser web app (Exec ... --app=URL / --app URL), or "" for normal apps."""
+    exec_cmd = get_desktop_exec(desktop_path) if desktop_path else None
+    if not exec_cmd:
+        return ""
+    try:
+        args = shlex.split(exec_cmd)
+    except ValueError:
+        return ""
+    for n, arg in enumerate(args):
+        if arg.startswith("--app="):
+            return url_host(arg[len("--app="):])
+        if arg == "--app" and n + 1 < len(args):
+            return url_host(args[n + 1])
+    return ""
+
+
+def mpris_url_tracks(bus):
+    """(host, title) of every MPRIS player that reports the URL it plays from (browsers)."""
+    tracks = []
+    for name in bus.list_names():
+        if not str(name).startswith("org.mpris.MediaPlayer2."):
+            continue
+        try:
+            player = bus.get_object(name, "/org/mpris/MediaPlayer2")
+            metadata = player.Get("org.mpris.MediaPlayer2.Player", "Metadata",
+                                  dbus_interface="org.freedesktop.DBus.Properties", timeout=1)
+        except dbus.exceptions.DBusException:
+            continue
+        host = url_host(metadata.get("xesam:url", ""))
+        title = str(metadata.get("xesam:title", ""))
+        if host and title:
+            tracks.append((host, title))
+    return tracks
+
+
+def web_app_tracks(launcher_urls, url_tracks):
+    """launcher URL -> track for web app windows whose site is the one a player plays from."""
+    result = {}
+    for launcher_url in launcher_urls:
+        host = web_app_host(resolve_launcher_url(launcher_url))
+        if not host:
+            continue
+        for track_host, title in url_tracks:
+            if track_host == host or track_host.endswith("." + host) or host.endswith("." + track_host):
+                result[launcher_url] = title
+                break
+    return result
 
 
 def autostart_path(desktop_path, autostart_dir=None, app_dirs=None):

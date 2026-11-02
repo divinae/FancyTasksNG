@@ -87,12 +87,6 @@ Loader {
     readonly property var groupPlayer: (toolTipDelegate.mpris2Model && toolTipDelegate.mpris2Model.playerForLauncherUrl)
         ? toolTipDelegate.mpris2Model.playerForLauncherUrl(toolTipDelegate.launcherUrl, toolTipDelegate.pidParent) : null
 
-    // A window title "shows" the track if it starts with it, ignoring a "(3) " unread prefix,
-    // so e.g. "Numb lyrics - Google Search" doesn't claim the track "Numb"
-    function titleShowsTrack(windowTitle, track) {
-        const cleaned = String(windowTitle || "").replace(/^\(\d+\)\s*/, "").toLowerCase();
-        return track.length > 0 && cleaned.startsWith(track.toLowerCase());
-    }
 
     // Prefix/suffix shared by the cleaned titles of this group's windows, so tiles can
     // emphasize what differs (see TaskTools.titleAffixes / styledTitle)
@@ -122,7 +116,7 @@ Loader {
         const ids = [];
         for (let i = 0; i < model.rowCount(parentIndex); ++i) {
             const childIndex = model.index(i, 0, parentIndex);
-            if (toolTipDelegate.titleShowsTrack(model.data(childIndex, Qt.DisplayRole), track)) {
+            if (TaskTools.titleShowsTrack(model.data(childIndex, Qt.DisplayRole), track)) {
                 const winIds = model.data(childIndex, TaskManager.AbstractTasksModel.WinIdList) || [];
                 if (winIds.length > 0)
                     ids.push(winIds[0]);

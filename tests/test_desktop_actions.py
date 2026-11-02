@@ -301,5 +301,32 @@ class AutostartTest(unittest.TestCase):
         self.assertEqual(da.desktop_file_id(str(sub), [str(self.apps)]), "kde4-foo.desktop")
 
 
+class WebAppTracksTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        apps = Path(self.tmp.name)
+        (apps / "WebApp-Spotify.desktop").write_text(
+            '[Desktop Entry]\nName=Spotify\nExec=vivaldi-stable --app="https://open.spotify.com" --class=WebApp-Spotify\n',
+            encoding="utf-8")
+        (apps / "browser.desktop").write_text("[Desktop Entry]\nName=Browser\nExec=vivaldi-stable %U\n", encoding="utf-8")
+        patcher = mock.patch.object(da, "DESKTOP_DIRS", [str(apps)])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_web_app_host(self):
+        self.assertEqual(da.web_app_host(da.resolve_launcher_url("applications:WebApp-Spotify.desktop")), "open.spotify.com")
+        self.assertEqual(da.web_app_host(da.resolve_launcher_url("applications:browser.desktop")), "")
+
+    def test_matches_player_by_host(self):
+        tracks = [("music.youtube.com", "Other"), ("open.spotify.com", "Gives & Takes")]
+        result = da.web_app_tracks(["applications:WebApp-Spotify.desktop", "applications:browser.desktop"], tracks)
+        self.assertEqual(result, {"applications:WebApp-Spotify.desktop": "Gives & Takes"})
+
+    def test_url_host(self):
+        self.assertEqual(da.url_host("https://www.Example.com/x"), "example.com")
+        self.assertEqual(da.url_host(""), "")
+
+
 if __name__ == "__main__":
     unittest.main()

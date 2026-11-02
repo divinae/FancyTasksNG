@@ -25,12 +25,37 @@ Item {
     readonly property bool audioIndicatorsEnabled: config ? config.indicateAudioStreams : false
 
     // Media Player Data
+    readonly property var tasksRoot: toolTipDelegate && toolTipDelegate.parentTask ? toolTipDelegate.parentTask.tasksRoot : null
+    readonly property string launcherUrlString: toolTipDelegate ? String(toolTipDelegate.launcherUrl || "") : ""
+
+    // Which player belongs to this window. Browsers register their media under the browser's
+    // own desktop entry, so web app windows run by the same browser (e.g. a Spotify app) need
+    // extra matching, and the main browser window must not take their player.
     readonly property var playerData: {
         if (!mpris2Model || !toolTipDelegate)
             return null;
+        const claims = tasksRoot ? tasksRoot.webAppTracks : {};
+        // 1. A web app window playing from its own site (matched by the helper via xesam:url)
+        if (claims[launcherUrlString]) {
+            const claimed = tasksRoot.playerWithTrack(claims[launcherUrlString]);
+            if (claimed)
+                return claimed;
+        }
+        // 2. A player whose track this window's title shows
+        const shown = tasksRoot ? tasksRoot.playerShownInTitle(title) : null;
+        if (shown)
+            return shown;
         if (!mpris2Model.playerForLauncherUrl)
             return null;
-        return mpris2Model.playerForLauncherUrl(toolTipDelegate.launcherUrl, appPid);
+        // 3. The app's own player, unless another window claims its track (a web app playing
+        //    it, or a window whose title shows it)
+        const own = mpris2Model.playerForLauncherUrl(toolTipDelegate.launcherUrl, appPid);
+        if (own && tasksRoot) {
+            const claimedElsewhere = Object.keys(claims).some(url => url !== launcherUrlString && claims[url] === own.track);
+            if (claimedElsewhere || tasksRoot.trackShownInOtherWindow(own.track, thumbnailWinId))
+                return null;
+        }
+        return own;
     }
     readonly property bool titleIncludesTrack: playerData && playerData.track && title.includes(playerData.track)
 
@@ -193,6 +218,8 @@ Item {
             delay: false,
             force: true
         });
+        if (tasksRoot)
+            tasksRoot.refreshWebAppTracks();
     }
 
     // Effective control state calculation

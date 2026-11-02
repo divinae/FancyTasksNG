@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Media Controls:** Player controls are now shown in a bar under the thumbnail by default, always visible like in the stock Task Manager (the hover overlay is still available in the settings).
 
 ### Fixed
+- **Browser Web Apps and Media:** Music played in a browser web app (e.g. a Spotify app run by Vivaldi or Chrome) now shows its player controls on the web app window instead of on the main browser window.
 - **Group Tooltips with Filters:** Closing, activating or dropping files on a window in a group tooltip now targets the right window when the minimized or reverse filters hide some tasks.
 - **Settings Applied Live:** Switching icons-only mode or the group popup option now updates the task list immediately instead of after a Plasma restart.
 - **Keyboard Shortcuts:** Meta+1..9 activates the task at that position again, and Meta+Shift+1..9 opens a new instance of it (the handler was removed by mistake in 2.1.0).
