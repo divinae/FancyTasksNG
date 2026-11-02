@@ -800,6 +800,30 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='i', out_signature='s')
+    def KillApp(self, pid):
+        """Force quit an app: SIGTERM now, SIGKILL after 3 s if it is still running."""
+        # Never this helper, its parent (plasmashell) or init
+        error = kill_app_error(pid, protected_pids=(os.getpid(), os.getppid()))
+        if error:
+            return f"ERROR: {error}"
+        pid = int(pid)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError as e:
+            return f"ERROR: {e}"
+
+        def kill_if_alive():
+            if kill_app_error(pid) is None:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            return False  # one-shot GLib timeout
+
+        GLib.timeout_add(3000, kill_if_alive)
+        return "OK"
+
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='i', out_signature='i')
     def PanelVisibility(self, containment_id):
         """Visibility mode of a panel from plasmashellrc, or -1 if unknown.
@@ -902,6 +926,23 @@ def panel_visibility(containment_id, rc_path=None):
     except (OSError, ValueError):
         pass
     return -1
+
+
+def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):
+    """Why a process must not be force-quit, or None if it may be."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return "invalid pid"
+    if pid <= 1 or pid in protected_pids:
+        return "refusing to kill this process"
+    try:
+        uid = os.stat(f"{proc_root}/{pid}").st_uid
+    except OSError:
+        return "no such process"
+    if uid != (os.getuid() if own_uid is None else own_uid):
+        return "process belongs to another user"
+    return None
 
 
 def get_desktop_exec(desktop_path):

@@ -176,5 +176,24 @@ class PanelVisibilityTest(unittest.TestCase):
         self.assertEqual(da.panel_visibility(1, "/nonexistent/plasmashellrc"), -1)
 
 
+class KillAppGuardTest(unittest.TestCase):
+    def test_refuses_init_and_invalid(self):
+        self.assertIsNotNone(da.kill_app_error(1))
+        self.assertIsNotNone(da.kill_app_error(0))
+        self.assertIsNotNone(da.kill_app_error("abc"))
+
+    def test_refuses_protected(self):
+        self.assertIsNotNone(da.kill_app_error(os.getpid(), protected_pids=(os.getpid(),)))
+
+    def test_own_process_allowed(self):
+        self.assertIsNone(da.kill_app_error(os.getpid()))
+
+    def test_other_user_refused(self):
+        self.assertEqual(da.kill_app_error(os.getpid(), own_uid=os.getuid() + 1), "process belongs to another user")
+
+    def test_missing_process(self):
+        self.assertEqual(da.kill_app_error(2**22 + 12345), "no such process")
+
+
 if __name__ == "__main__":
     unittest.main()

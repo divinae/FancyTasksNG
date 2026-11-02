@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Force Quit:** The context menu of a running app has "Force Quit" (confirmed through a submenu) for apps that stopped responding: the app is asked to quit and killed after 3 seconds if it is still running.
 - **Launch Bounce:** While an app is starting, its icon bounces like in the macOS Dock instead of showing a busy spinner (option on the Advanced page).
 - **Attention Peek:** New option (Advanced page) for auto-hidden panels: instead of unhiding the whole panel when an app wants attention, only that app's icon bounces out of the screen edge where it sits in the panel. Clicking it switches to the window that asked for attention.
 - **Attention Indicators:** While a window wants attention, its indicators switch to the attention color (custom or the theme's warning color) and are never dimmed. With task button backgrounds disabled, the task also gets a soft attention-colored background, so it is clear which app needs a click.

@@ -197,6 +197,10 @@ Item {
         _call(root._service, "PanelVisibility", [parseInt(containmentId)], "(i)", reply => callback(parseInt(reply)));
     }
 
+    function killApp(pid, callback) {
+        _call(root._service, "KillApp", [parseInt(pid)], "(i)", callback);
+    }
+
     function openUrl(url, launcherUrl) {
         _call(root._service, "OpenUrl", [String(url || ""), String(launcherUrl || "")], "(ss)", null);
     }

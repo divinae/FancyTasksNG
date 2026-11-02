@@ -995,6 +995,35 @@ PlasmaExtras.Menu {
         }
     }
 
+    // Force quit a hung app (macOS "Force Quit", Windows "End task"). Confirmed through a
+    // one-item submenu so it can't be triggered by a stray click.
+    PlasmaExtras.MenuItem {
+        id: forceQuitItem
+        visible: visualParent && !get(atm.IsLauncher) && !get(atm.IsStartup) && (get(atm.AppPid) || 0) > 0
+
+        text: Wrappers.i18nc("@item:inmenu", "&Force Quit")
+        icon: "process-stop"
+
+        readonly property PlasmaExtras.Menu _confirmMenu: PlasmaExtras.Menu {
+            id: forceQuitMenu
+            visualParent: forceQuitItem.action
+        }
+
+        Component.onCompleted: {
+            const confirm = menu.newMenuItem(forceQuitMenu);
+            confirm.text = Qt.binding(() => Wrappers.i18nc("@item:inmenu", "Force quit %1 (unsaved work is lost)", menu.get(menu.atm.AppName) || ""));
+            confirm.icon = "process-stop";
+            confirm.clicked.connect(() => {
+                const pid = menu.get(menu.atm.AppPid);
+                DesktopActionsManager.killApp(pid, reply => {
+                    if (!reply.startsWith("OK"))
+                        console.warn("FancyTasksNG: force quit failed:", reply);
+                });
+            });
+            forceQuitMenu.addMenuItem(confirm);
+        }
+    }
+
     PlasmaExtras.MenuItem {
         id: closeOtherWindowsItem
         visible: visualParent && get(atm.IsWindow) && !get(atm.IsGroupParent) && menu._otherAppWindows.length > 0
