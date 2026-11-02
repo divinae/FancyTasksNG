@@ -377,12 +377,12 @@ Item {
             id: thumbnailHoverHandler
         }
 
+        // Tile of a window that wants attention: tinted with the attention color and framed
         Rectangle {
             anchors.fill: hoverHandler
-            z: 3000
             visible: root.isDemandingAttention
-            color: "transparent"
-            border.width: 2
+            color: Qt.rgba(root.attentionColor.r, root.attentionColor.g, root.attentionColor.b, 0.25)
+            border.width: 3
             border.color: root.attentionColor
             radius: Kirigami.Units.cornerRadius
         }
@@ -607,7 +607,8 @@ Item {
             
             Rectangle {
                 anchors.fill: parent
-                color: Qt.rgba(0, 0, 0, 0.55)
+                // Title label of a window that wants attention uses the attention color
+                color: root.isDemandingAttention ? Qt.darker(root.attentionColor, 1.3) : Qt.rgba(0, 0, 0, 0.55)
                 radius: Kirigami.Units.cornerRadius
             }
             
