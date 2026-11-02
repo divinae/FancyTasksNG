@@ -302,7 +302,9 @@ Item {
                 elide: Text.ElideRight
                 
                 text: root.showThumbnails ? (root.titleIncludesTrack ? "" : root.title) : root.display
-                opacity: root.showThumbnails ? 0.75 : 1.0
+                // Text list: minimized windows are dimmed and italic
+                opacity: root.showThumbnails ? 0.75 : (root.isMinimized ? 0.55 : 1.0)
+                font.italic: root.isMinimized && !root.showThumbnails
                 horizontalAlignment: Text.AlignLeft
                 visible: text.length !== 0
                 textFormat: Text.PlainText
@@ -387,6 +389,28 @@ Item {
             radius: Kirigami.Units.cornerRadius
         }
 
+        // Marker in the corner of a minimized window's thumbnail
+        Rectangle {
+            visible: root.isMinimized && root.isWin && root.showThumbnails
+            z: 2001
+            anchors.right: hoverHandler.right
+            anchors.bottom: hoverHandler.bottom
+            anchors.margins: thumbnailLoader.anchors.margins + Kirigami.Units.smallSpacing
+            width: Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
+            height: width
+            radius: Kirigami.Units.cornerRadius
+            color: Qt.rgba(0, 0, 0, 0.55)
+
+            Kirigami.Icon {
+                anchors.centerIn: parent
+                width: Kirigami.Units.iconSizes.small
+                height: width
+                source: "window-minimize"
+                isMask: true
+                color: "white"
+            }
+        }
+
         PlasmaExtras.Highlight {
             id: thumbnailHighlight
             anchors.fill: hoverHandler
@@ -405,6 +429,8 @@ Item {
 
         Loader {
             id: thumbnailLoader
+            // Minimized windows are dimmed (see also the minimized marker below)
+            opacity: root.isMinimized ? 0.45 : 1
             active: root.showThumbnails && !root.isLauncher && !albumArtImage.visible && (Number.isInteger(root.currentWinId) || pipeWireLoader.item && !pipeWireLoader.item.hasThumbnail) && root.index !== -1
             asynchronous: true
             
@@ -467,6 +493,7 @@ Item {
 
         Loader {
             id: pipeWireLoader
+            opacity: root.isMinimized ? 0.45 : 1
             anchors.fill: hoverHandler
             anchors.margins: thumbnailLoader.anchors.margins
 
@@ -505,6 +532,7 @@ Item {
         // Placeholder image showing the cached thumbnail while the live stream initializes
         Image {
              id: cachedThumbnail
+             opacity: root.isMinimized ? 0.45 : 1
              anchors.fill: hoverHandler
              anchors.margins: thumbnailLoader.anchors.margins
              

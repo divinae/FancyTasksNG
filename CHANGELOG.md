@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Minimized Windows:** In a group, the indicator segment of a minimized window is shown in the minimized style (with "Desaturate minimized" on), and tooltips dim minimized windows and mark their thumbnails with a minimize icon.
 - **Tooltip Delay:** The time before a tooltip opens can be set on the Behavior page (0–2000 ms, default 500).
 - **Open at Login:** The context menu has a checkable "Open at Login" item that adds the app to (or removes it from) autostart.
 - **Window Count:** Optional number on the icon of an app with several windows (Indicators page), in the badge spot when there are no unread messages.

@@ -67,6 +67,31 @@ Flow {
     // In a group, only the segment of the window that wants attention gets the attention color.
     // If no single window asks (e.g. only the app's LauncherEntry urgent flag), all segments do.
     // Called from computedVar, which re-evaluates when the task's demandsAttention changes.
+    // Bumped when a child window of this group changes (e.g. gets minimized), so segment
+    // styles that depend on per-window state re-evaluate
+    property int _childStateVersion: 0
+    Connections {
+        target: indicatorsFlow.tasksRoot ? indicatorsFlow.tasksRoot.tasksModel : null
+        enabled: indicatorsFlow.taskCount > 1
+        function onDataChanged() { indicatorsFlow._childStateVersion++; }
+    }
+
+    // Whether the window behind a segment is minimized: per child window in a group (the last
+    // segment stands for all windows beyond the segment limit), else the task itself
+    function segmentMinimized(segmentIndex) {
+        const model = indicatorsFlow.tasksRoot ? indicatorsFlow.tasksRoot.tasksModel : null;
+        if (!model || !indicatorsFlow.taskItem.model.IsGroupParent)
+            return indicatorsFlow.taskItem.taskState === "minimized";
+        const parentRow = indicatorsFlow.taskItem.modelIndex().row;
+        const role = TaskManager.AbstractTasksModel.IsMinimized;
+        const last = segmentIndex === maxStatesLimit - 1 ? indicatorsFlow.taskCount - 1 : segmentIndex;
+        for (let i = segmentIndex; i <= last; ++i) {
+            if (model.data(model.makeModelIndex(parentRow, i), role) !== true)
+                return false;
+        }
+        return true;
+    }
+
     function segmentWantsAttention(segmentIndex) {
         const model = indicatorsFlow.tasksRoot ? indicatorsFlow.tasksRoot.tasksModel : null;
         if (!model || !indicatorsFlow.taskItem.model.IsGroupParent)
@@ -217,7 +242,8 @@ Flow {
 
                 var baseColor = colorEval;
 
-                if(indicatorsFlow.config.indicatorDesaturate && indicatorsFlow.taskItem.taskState === "minimized") {
+                void indicatorsFlow._childStateVersion; // re-evaluate on per-window changes
+                if(indicatorsFlow.config.indicatorDesaturate && indicatorsFlow.segmentMinimized(index)) {
                     colorCalc = Qt.hsla(baseColor.hslHue, 0.0, baseColor.hslLightness, baseColor.a * 0.5)
                 } else {
                     colorCalc = baseColor
