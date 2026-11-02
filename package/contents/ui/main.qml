@@ -555,9 +555,15 @@ PlasmoidItem {
         onObjectRemoved: (index, object) => tasks.mprisPlayers = tasks.mprisPlayers.filter(p => p !== object.container)
     }
 
-    // {launcherUrl: track} for open web app windows playing from a browser player's site,
-    // refreshed when a tooltip opens
+    // {launcherUrl: {track, pid}} for open web app windows that a *playing* browser player is
+    // playing from (matched by site in the helper). Refreshed when a tooltip opens and every
+    // 5 s while something plays; used for tooltips and for the panel's audio streams.
     property var webAppTracks: ({})
+    function setWebAppTracks(map) {
+        // Assign only on change, so dependants don't re-evaluate on every refresh
+        if (JSON.stringify(map) !== JSON.stringify(tasks.webAppTracks))
+            tasks.webAppTracks = map;
+    }
     function refreshWebAppTracks() {
         const urls = [];
         const model = tasks.tasksModel;
@@ -572,37 +578,63 @@ PlasmoidItem {
             }
         };
         walk(model.index(-1, -1));
-        DesktopActionsManager.webAppTracks(urls, map => tasks.webAppTracks = map);
+        DesktopActionsManager.webAppTracks(urls, map => tasks.setWebAppTracks(map));
     }
 
     // Keep the web app claims fresh while any player exists, so the panel's audio icons
     // (not only tooltips) follow the media to the right window
+    readonly property bool anyPlayerPlaying: tasks.mprisPlayers.some(player => player && player.playbackStatus === Mpris.PlaybackStatus.Playing)
     Timer {
         interval: 5000
         repeat: true
         triggeredOnStart: true
-        running: tasks.mprisPlayers.length > 0
+        running: tasks.anyPlayerPlaying
         onTriggered: tasks.refreshWebAppTracks()
+        // Playback stopped: one last refresh drops claims of players that no longer play
+        onRunningChanged: if (!running) tasks.refreshWebAppTracks()
+    }
+    onMprisPlayersChanged: if (tasks.mprisPlayers.length === 0) tasks.setWebAppTracks({})
+
+    // The player a web app claim refers to: by the process owning its D-Bus name
+    // (instancePid; kdePid is the browser process, shared by its other players), which is
+    // stable across track changes, else by track title
+    function playerForClaim(claim) {
+        if (!claim)
+            return null;
+        for (const player of tasks.mprisPlayers) {
+            if (player && claim.pid && player.instancePid === claim.pid)
+                return player;
+        }
+        return tasks.playerWithTrack(claim.track);
+    }
+
+    // Stream app names and MPRIS identities differ between browsers ("Google Chrome" vs
+    // "Chrome", "Mozilla Firefox" vs "Firefox"): compare loosely
+    function sameBrowserName(a, b) {
+        a = String(a || "").toLowerCase();
+        b = String(b || "").toLowerCase();
+        return a.length > 0 && b.length > 0 && (a.includes(b) || b.includes(a));
     }
 
     // Audio streams that belong to a window. Browsers play from a helper process tagged only
     // with the browser's name, so name matching would give a web app's audio (e.g. a Spotify
-    // app) to the main browser window: a web app that claims a player gets the streams of
-    // that player's browser, and other windows of that browser don't get them.
+    // app) to the main browser window. While a web app's player is playing, the web app gets
+    // its browser's streams and the browser's other windows don't. Limitation: a browser
+    // doesn't say which tab a stream comes from, so while its web app plays, sound from a
+    // regular tab is attributed to the web app too.
     function audioStreamsFor(pa, appId, pid, appName, launcherUrl) {
         const own = pa.streamsForApp(appId, pid, appName);
         const claims = tasks.webAppTracks || {};
-        const myTrack = claims[launcherUrl];
-        if (myTrack) {
+        const myClaim = claims[launcherUrl];
+        if (myClaim) {
             if (own.length > 0)
                 return own;
-            const player = tasks.playerWithTrack(myTrack);
-            return player ? pa.streamsForAppName(player.identity) : [];
+            const player = tasks.playerForClaim(myClaim);
+            return player ? pa.findStreams(stream => tasks.sameBrowserName(stream.appName, player.identity)) : [];
         }
-        // Streams of a browser whose media is claimed by one of its web app windows
-        const claimedBrowsers = Object.keys(claims).map(url => tasks.playerWithTrack(claims[url]))
+        const claimedBrowsers = Object.keys(claims).map(url => tasks.playerForClaim(claims[url]))
             .filter(player => !!player).map(player => player.identity);
-        return own.filter(stream => claimedBrowsers.indexOf(stream.appName) === -1);
+        return own.filter(stream => !claimedBrowsers.some(name => tasks.sameBrowserName(stream.appName, name)));
     }
 
     // The player playing a given track, or null

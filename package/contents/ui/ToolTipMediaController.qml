@@ -37,7 +37,7 @@ Item {
         const claims = tasksRoot ? tasksRoot.webAppTracks : {};
         // 1. A web app window playing from its own site (matched by the helper via xesam:url)
         if (claims[launcherUrlString]) {
-            const claimed = tasksRoot.playerWithTrack(claims[launcherUrlString]);
+            const claimed = tasksRoot.playerForClaim(claims[launcherUrlString]);
             if (claimed)
                 return claimed;
         }
@@ -51,7 +51,12 @@ Item {
         //    it, or a window whose title shows it)
         const own = mpris2Model.playerForLauncherUrl(toolTipDelegate.launcherUrl, appPid);
         if (own && tasksRoot) {
-            const claimedElsewhere = Object.keys(claims).some(url => url !== launcherUrlString && claims[url] === own.track);
+            const claimedElsewhere = Object.keys(claims).some(url => {
+                if (url === launcherUrlString)
+                    return false;
+                const claimed = tasksRoot.playerForClaim(claims[url]);
+                return claimed === own || (!!claimed && claimed.instancePid === own.instancePid);
+            });
             if (claimedElsewhere || tasksRoot.trackShownInOtherWindow(own.track, thumbnailWinId))
                 return null;
         }

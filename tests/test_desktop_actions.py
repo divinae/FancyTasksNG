@@ -319,9 +319,10 @@ class WebAppTracksTest(unittest.TestCase):
         self.assertEqual(da.web_app_host(da.resolve_launcher_url("applications:browser.desktop")), "")
 
     def test_matches_player_by_host(self):
-        tracks = [("music.youtube.com", "Other"), ("open.spotify.com", "Gives & Takes")]
-        result = da.web_app_tracks(["applications:WebApp-Spotify.desktop", "applications:browser.desktop"], tracks)
-        self.assertEqual(result, {"applications:WebApp-Spotify.desktop": "Gives & Takes"})
+        players = [{"host": "music.youtube.com", "track": "Other", "pid": 1},
+                   {"host": "open.spotify.com", "track": "Gives & Takes", "pid": 42}]
+        result = da.web_app_tracks(["applications:WebApp-Spotify.desktop", "applications:browser.desktop"], players)
+        self.assertEqual(result, {"applications:WebApp-Spotify.desktop": {"track": "Gives & Takes", "pid": 42}})
 
     def test_url_host(self):
         self.assertEqual(da.url_host("https://www.Example.com/x"), "example.com")

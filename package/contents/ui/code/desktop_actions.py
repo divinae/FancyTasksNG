@@ -824,13 +824,13 @@ class DesktopActionsService(dbus.service.Object):
 
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='as', out_signature='s')
     def WebAppTracks(self, launcher_urls):
-        """JSON {launcherUrl: track} for open browser web app windows (e.g. a Spotify app)
-        whose site is what a browser MPRIS player is playing from."""
+        """JSON {launcherUrl: {"track", "pid"}} for open browser web app windows (e.g. a
+        Spotify app) whose site a playing browser MPRIS player is playing from."""
         try:
-            tracks = mpris_url_tracks(self.bus)
+            players = mpris_url_tracks(self.bus)
         except dbus.exceptions.DBusException:
-            tracks = []
-        return json.dumps(web_app_tracks([str(u) for u in launcher_urls], tracks))
+            players = []
+        return json.dumps(web_app_tracks([str(u) for u in launcher_urls], players))
 
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='i')
     def AutostartState(self, launcher_url):
@@ -1015,34 +1015,41 @@ def web_app_host(desktop_path):
 
 
 def mpris_url_tracks(bus):
-    """(host, title) of every MPRIS player that reports the URL it plays from (browsers)."""
-    tracks = []
+    """Playing MPRIS players that report the URL they play from (browsers):
+    list of {"host", "track", "pid"} where pid is the player's D-Bus connection process."""
+    players = []
+    bus_obj = bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
     for name in bus.list_names():
         if not str(name).startswith("org.mpris.MediaPlayer2."):
             continue
         try:
             player = bus.get_object(name, "/org/mpris/MediaPlayer2")
-            metadata = player.Get("org.mpris.MediaPlayer2.Player", "Metadata",
+            props = player.GetAll("org.mpris.MediaPlayer2.Player",
                                   dbus_interface="org.freedesktop.DBus.Properties", timeout=1)
+            pid = int(bus_obj.GetConnectionUnixProcessID(name, dbus_interface="org.freedesktop.DBus", timeout=1))
         except dbus.exceptions.DBusException:
             continue
+        if str(props.get("PlaybackStatus", "")) != "Playing":
+            continue
+        metadata = props.get("Metadata", {})
         host = url_host(metadata.get("xesam:url", ""))
-        title = str(metadata.get("xesam:title", ""))
-        if host and title:
-            tracks.append((host, title))
-    return tracks
+        track = str(metadata.get("xesam:title", ""))
+        if host and track:
+            players.append({"host": host, "track": track, "pid": pid})
+    return players
 
 
-def web_app_tracks(launcher_urls, url_tracks):
-    """launcher URL -> track for web app windows whose site is the one a player plays from."""
+def web_app_tracks(launcher_urls, players):
+    """launcher URL -> {"track", "pid"} for web app windows whose site a playing player plays from."""
     result = {}
     for launcher_url in launcher_urls:
         host = web_app_host(resolve_launcher_url(launcher_url))
         if not host:
             continue
-        for track_host, title in url_tracks:
+        for player in players:
+            track_host = player["host"]
             if track_host == host or track_host.endswith("." + host) or host.endswith("." + track_host):
-                result[launcher_url] = title
+                result[launcher_url] = {"track": player["track"], "pid": player["pid"]}
                 break
     return result
 
