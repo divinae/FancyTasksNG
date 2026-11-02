@@ -34,26 +34,21 @@ Item {
     }
     readonly property bool titleIncludesTrack: playerData && playerData.track && title.includes(playerData.track)
 
-    // In a group (e.g. several browser windows of one process), whether some window's title
-    // shows the playing track. Browsers don't tag audio streams with a window id and all their
-    // windows share one process, so the title is the only per-window hint; when one window
-    // matches, controls are shown only there instead of on every window of the app.
-    readonly property bool groupHasTrackWindow: {
-        if (!playerData || !playerData.track || !toolTipDelegate || !toolTipDelegate.isGroup)
-            return false;
-        const model = toolTipDelegate.tasksModel;
-        const parentIndex = toolTipDelegate.rootIndex;
-        if (!model || !parentIndex)
-            return false;
-        for (let i = 0; i < model.rowCount(parentIndex); ++i) {
-            const title = String(model.data(model.index(i, 0, parentIndex), Qt.DisplayRole) || "");
-            if (title.includes(playerData.track))
-                return true;
-        }
-        return false;
+    // A window tile inside a grouped tooltip (as opposed to a single-window tooltip)
+    readonly property bool isGroupMember: !!toolTipDelegate && toolTipDelegate.isGroup && !!thumbnailWinId
+
+    // Which window of a group the media belongs to, most reliable signal first:
+    // 1. audio streams tagged with a window id, 2. the window title showing the track
+    //    (see ToolTipDelegate.trackWindowIds), 3. otherwise every window of the playing app.
+    readonly property bool belongsToThisWindow: {
+        const streamWindowIds = audioStreams.map(stream => stream.windowId).filter(id => !!id);
+        if (streamWindowIds.length > 0)
+            return streamWindowIds.indexOf(thumbnailWinId) !== -1;
+        const trackIds = toolTipDelegate ? toolTipDelegate.trackWindowIds : [];
+        if (trackIds.length > 0)
+            return trackIds.indexOf(thumbnailWinId) !== -1;
+        return isPlayingAudio || hasAudioStream;
     }
-    readonly property bool belongsToThisWindow: hasWindowSpecificStream(thumbnailWinId) || titleIncludesTrack
-        || (!groupHasTrackWindow && (isPlayingAudio || hasAudioStream))
 
     // Audio Streams
     property var audioStreams: []
@@ -211,15 +206,13 @@ Item {
         if (!hasStatus)
             return false;
 
-        // If it's a single window tooltip or global group controller, always allow controls
-        if (!toolTipDelegate || !toolTipDelegate.isGroup || !thumbnailWinId)
-            return true;
-
-        // For individual windows inside a group, prefer the window whose stream or title matches
-        return belongsToThisWindow;
+        // Single-window tooltip or group-level controller: always allow controls;
+        // a window tile in a group: only the window the media belongs to
+        return !isGroupMember || belongsToThisWindow;
     }
+    // Volume needs an actual stream to act on
     readonly property bool showVolumeControls: index !== -1 && audioStreamManager && audioStreamManager.item !== null && audioIndicatorsEnabled
-        && (toolTipDelegate && toolTipDelegate.isGroup && thumbnailWinId ? belongsToThisWindow : (hasWindowSpecificStream(thumbnailWinId) || titleIncludesTrack || hasAudioStream))
+        && hasAudioStream && (!isGroupMember || belongsToThisWindow)
     readonly property bool controlsAreEffective: config && config.showMediaControls && (showPlayerControls || showVolumeControls)
 }
 

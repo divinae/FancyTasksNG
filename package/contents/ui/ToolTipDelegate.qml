@@ -72,6 +72,47 @@ Loader {
 
     property string appName
     property int pidParent
+
+    // --- Which window of a group plays the media (computed once per group, not per tile) ---
+    // Browsers play audio from one process for all windows and don't tag streams with a
+    // window id; the only per-window hint is the title, which is the active tab's title.
+    property int _titlesVersion: 0
+    Connections {
+        target: toolTipDelegate.tasksModel
+        function onDataChanged() { toolTipDelegate._titlesVersion++; }
+        function onRowsInserted() { toolTipDelegate._titlesVersion++; }
+        function onRowsRemoved() { toolTipDelegate._titlesVersion++; }
+        function onModelReset() { toolTipDelegate._titlesVersion++; }
+    }
+    readonly property var groupPlayer: (toolTipDelegate.mpris2Model && toolTipDelegate.mpris2Model.playerForLauncherUrl)
+        ? toolTipDelegate.mpris2Model.playerForLauncherUrl(toolTipDelegate.launcherUrl, toolTipDelegate.pidParent) : null
+
+    // A window title "shows" the track if it starts with it, ignoring a "(3) " unread prefix,
+    // so e.g. "Numb lyrics - Google Search" doesn't claim the track "Numb"
+    function titleShowsTrack(windowTitle, track) {
+        const cleaned = String(windowTitle || "").replace(/^\(\d+\)\s*/, "").toLowerCase();
+        return track.length > 0 && cleaned.startsWith(track.toLowerCase());
+    }
+
+    // Window ids (WinIdList[0]) in this group whose title shows the playing track
+    readonly property var trackWindowIds: {
+        void toolTipDelegate._titlesVersion; // re-evaluate when titles or rows change
+        const track = toolTipDelegate.groupPlayer ? String(toolTipDelegate.groupPlayer.track || "").trim() : "";
+        const model = toolTipDelegate.tasksModel;
+        const parentIndex = toolTipDelegate.rootIndex;
+        if (!toolTipDelegate.isGroup || !track || !model || !parentIndex || !parentIndex.valid)
+            return [];
+        const ids = [];
+        for (let i = 0; i < model.rowCount(parentIndex); ++i) {
+            const childIndex = model.index(i, 0, parentIndex);
+            if (toolTipDelegate.titleShowsTrack(model.data(childIndex, Qt.DisplayRole), track)) {
+                const winIds = model.data(childIndex, TaskManager.AbstractTasksModel.WinIdList) || [];
+                if (winIds.length > 0)
+                    ids.push(winIds[0]);
+            }
+        }
+        return ids;
+    }
     property bool isGroup
     property var windows: []
     readonly property bool isWin: windows.length > 0
