@@ -296,6 +296,18 @@ ConfigPage {
                 implicitWidth: behaviorPage.gridUnit
             }
             CheckBox {
+                text: Wrappers.i18n("List most recently used windows first")
+                checked: behaviorPage.cfg_tooltipRecentFirst
+                onToggled: behaviorPage.cfg_tooltipRecentFirst = checked
+            }
+        }
+
+        RowLayout {
+            visible: enableToolTips.checked
+            Item {
+                implicitWidth: behaviorPage.gridUnit
+            }
+            CheckBox {
                 id: highlightWindows
                 text: Wrappers.i18n("Hide other windows when hovering over a window in the tooltip")
                 checked: behaviorPage.cfg_highlightWindows

@@ -77,9 +77,11 @@ Loader {
     // Browsers play audio from one process for all windows and don't tag streams with a
     // window id; the only per-window hint is the title, which is the active tab's title.
     property int _titlesVersion: 0
+    // Emitted when window data (e.g. activation time) changes, so a group can re-sort
+    signal windowOrderChanged()
     Connections {
         target: toolTipDelegate.tasksModel
-        function onDataChanged() { toolTipDelegate._titlesVersion++; }
+        function onDataChanged() { toolTipDelegate._titlesVersion++; toolTipDelegate.windowOrderChanged(); }
         function onRowsInserted() { toolTipDelegate._titlesVersion++; }
         function onRowsRemoved() { toolTipDelegate._titlesVersion++; }
         function onModelReset() { toolTipDelegate._titlesVersion++; }
@@ -541,6 +543,13 @@ Loader {
                     clip: false
                 }
 
+                // Re-sort when a window's data (e.g. its activation time) changes
+                Connections {
+                    target: toolTipDelegate
+                    enabled: delegateModel.recentFirst
+                    function onWindowOrderChanged() { Qt.callLater(delegateModel.sortRecentFirst); }
+                }
+
                 DelegateModel {
                     id: delegateModel
 
@@ -572,6 +581,30 @@ Loader {
                         delegateHeight = 0;
                         groupToolTipListView.positionViewAtBeginning();
                     }
+
+                    // Optional "most recently used first" order. Only the display order of the
+                    // items group changes; each delegate's index stays its source row, so
+                    // submodelIndex and window actions still target the right window.
+                    readonly property bool recentFirst: !!toolTipDelegate.config.tooltipRecentFirst
+                    function lastActivated(i) {
+                        const value = items.get(i).model.LastActivated;
+                        return value ? new Date(value).getTime() || 0 : 0;
+                    }
+                    function sortRecentFirst() {
+                        if (!recentFirst)
+                            return;
+                        // Insertion sort with moves: groups are small
+                        for (let i = 1; i < items.count; ++i) {
+                            const key = lastActivated(i);
+                            let j = i;
+                            while (j > 0 && lastActivated(j - 1) < key)
+                                --j;
+                            if (j !== i)
+                                items.move(i, j, 1);
+                        }
+                    }
+                    items.onChanged: Qt.callLater(sortRecentFirst)
+                    onRecentFirstChanged: Qt.callLater(sortRecentFirst)
 
                     delegate: ToolTipInstance {
                         required property var model

@@ -124,6 +124,10 @@
             >Whether to try and always layout task buttons in as many rows/columns as set via maxStripes.</label>
       <default>false</default>
     </entry>
+    <entry name="tooltipRecentFirst" type="Bool">
+      <label>List the most recently used windows first in grouped tooltips.</label>
+      <default>false</default>
+    </entry>
     <entry name="tooltipDelay" type="Int">
       <label>Time in milliseconds before a task tooltip opens.</label>
       <default>500</default>
