@@ -506,6 +506,7 @@ Loader {
                         appPid: model.AppPid !== undefined ? model.AppPid : 0
                         appId: model.AppId !== undefined ? model.AppId : ""
                         isMinimized: model.IsMinimized !== undefined ? model.IsMinimized : false
+                        isDemandingAttention: model.IsDemandingAttention === true
                         isOnAllVirtualDesktops: model.IsOnAllVirtualDesktops !== undefined ? model.IsOnAllVirtualDesktops : false
                         virtualDesktops: model.VirtualDesktops !== undefined ? model.VirtualDesktops : []
                         activities: model.Activities !== undefined ? model.Activities : []

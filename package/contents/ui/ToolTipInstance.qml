@@ -68,6 +68,17 @@ Item {
         id: rootHover
     }
 
+    // Text-mode list: frame the entry of a window that wants attention
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -Kirigami.Units.smallSpacing / 2
+        visible: root.isDemandingAttention && !root.showThumbnails
+        color: "transparent"
+        border.width: 2
+        border.color: root.attentionColor
+        radius: Kirigami.Units.cornerRadius
+    }
+
     PlasmaExtras.Highlight {
         anchors.fill: parent
         anchors.margins: -Kirigami.Units.smallSpacing / 2
@@ -99,6 +110,10 @@ Item {
     property string appId: ""
     required property string display
     required property bool isMinimized
+    // This window wants attention: its tile gets a frame in the attention color
+    property bool isDemandingAttention: false
+    readonly property color attentionColor: root.config.attentionCustomColorEnabled
+        ? root.config.attentionCustomColor : Kirigami.Theme.neutralTextColor
     required property bool isWindowActive
     required property bool isOnAllVirtualDesktops
     required property var virtualDesktops
@@ -360,6 +375,16 @@ Item {
 
         HoverHandler {
             id: thumbnailHoverHandler
+        }
+
+        Rectangle {
+            anchors.fill: hoverHandler
+            z: 3000
+            visible: root.isDemandingAttention
+            color: "transparent"
+            border.width: 2
+            border.color: root.attentionColor
+            radius: Kirigami.Units.cornerRadius
         }
 
         PlasmaExtras.Highlight {

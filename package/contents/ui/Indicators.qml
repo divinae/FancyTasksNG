@@ -11,6 +11,7 @@ import QtQuick
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
+import org.kde.taskmanager as TaskManager
 
 import "code/tools.js" as TaskTools
 
@@ -62,6 +63,28 @@ Flow {
         }
         return -1;
     }
+
+    // In a group, only the segment of the window that wants attention gets the attention color.
+    // If no single window asks (e.g. only the app's LauncherEntry urgent flag), all segments do.
+    // Called from computedVar, which re-evaluates when the task's demandsAttention changes.
+    function segmentWantsAttention(segmentIndex) {
+        const model = indicatorsFlow.tasksRoot ? indicatorsFlow.tasksRoot.tasksModel : null;
+        if (!model || !indicatorsFlow.taskItem.model.IsGroupParent)
+            return true;
+        const parentRow = indicatorsFlow.taskItem.modelIndex().row;
+        const attentionRole = TaskManager.AbstractTasksModel.IsDemandingAttention;
+        let anyChild = false;
+        for (let i = 0; i < indicatorsFlow.taskCount; ++i) {
+            if (model.data(model.makeModelIndex(parentRow, i), attentionRole) === true) {
+                anyChild = true;
+                // The last segment also stands for any windows beyond the segment limit
+                if (i === segmentIndex || (segmentIndex === maxStatesLimit - 1 && i >= segmentIndex))
+                    return true;
+            }
+        }
+        return !anyChild;
+    }
+    readonly property int maxStatesLimit: indicatorsFlow.config.indicatorMaxLimit
 
     Repeater {
         model: {
@@ -122,7 +145,8 @@ Flow {
 
                 // A window wants attention: use the attention color (the user's custom one, or the
                 // theme's warning color) so it is clear which app to click, even without button backgrounds
-                const attention = indicatorsFlow.config.indicatorAttentionColor && indicatorsFlow.taskItem.demandsAttention;
+                const attention = indicatorsFlow.config.indicatorAttentionColor && indicatorsFlow.taskItem.demandsAttention
+                    && indicatorsFlow.segmentWantsAttention(index);
                 if (attention) {
                     colorEval = indicatorsFlow.config.attentionCustomColorEnabled
                         ? indicatorsFlow.config.attentionCustomColor : Kirigami.Theme.neutralTextColor;
