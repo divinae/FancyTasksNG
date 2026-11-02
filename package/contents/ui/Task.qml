@@ -596,8 +596,8 @@ Item {
             running: attentionBackground.visible
             loops: Animation.Infinite
             alwaysRunToEnd: false
-            NumberAnimation { from: 0.3; to: 0.6; duration: 900; easing.type: Easing.InOutSine }
-            NumberAnimation { from: 0.6; to: 0.3; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 0.55; to: 0.9; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 0.9; to: 0.55; duration: 900; easing.type: Easing.InOutSine }
         }
     }
 

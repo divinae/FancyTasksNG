@@ -150,6 +150,10 @@ Flow {
                 if (attention) {
                     colorEval = indicatorsFlow.config.attentionCustomColorEnabled
                         ? indicatorsFlow.config.attentionCustomColor : Kirigami.Theme.neutralTextColor;
+                    // Over the attention-colored background (task buttons without a frame) the same
+                    // color would vanish; use a darker shade of it instead
+                    if (indicatorsFlow.config.disableButtonSvg)
+                        colorEval = Qt.darker(colorEval, 1.8);
                 }
 
                 let segLength = indicatorLength;
