@@ -38,6 +38,8 @@ Kirigami.Page {
     property bool cfg_unhideOnAttentionDefault: true
     property bool cfg_attentionPeek: false
     property bool cfg_attentionPeekDefault: false
+    property bool cfg_bounceOnLaunch: true
+    property bool cfg_bounceOnLaunchDefault: true
     property bool cfg_animateAttentionStatus: true
     property bool cfg_animateAttentionStatusDefault: true
     property bool cfg_attentionCustomColorEnabled: false

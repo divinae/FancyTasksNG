@@ -39,6 +39,10 @@
       <label>Instead of unhiding the panel, peek the icon of an app that wants attention out of the screen edge.</label>
       <default>false</default>
     </entry>
+    <entry name="bounceOnLaunch" type="Bool">
+      <label>Bounce the icon while an application is starting (instead of a busy indicator).</label>
+      <default>true</default>
+    </entry>
     <entry name="animateAttentionStatus" type="Bool">
       <label>Animate jumping icon when requesting attention</label>
       <default>true</default>

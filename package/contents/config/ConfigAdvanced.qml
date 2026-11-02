@@ -91,6 +91,12 @@ ConfigPage {
             visible: advancedPage.cfg_iconOnly === 1
         }
 
+        CheckBox {
+            text: Wrappers.i18n("Bounce the icon while an application is starting")
+            checked: advancedPage.cfg_bounceOnLaunch
+            onToggled: advancedPage.cfg_bounceOnLaunch = checked
+        }
+
         RowLayout {
             spacing: advancedPage.smallSpacing
 

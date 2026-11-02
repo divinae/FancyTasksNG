@@ -155,7 +155,7 @@ Item {
         id: attentionAnimation
         running: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
         loops: Animation.Infinite
-        onRunningChanged: if (!running) iconBox._attentionLift = 0
+        onRunningChanged: if (!running && !launchAnimation.running) iconBox._attentionLift = 0
 
         // Two hops, the second smaller, then a short rest
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 1; duration: 220; easing.type: Easing.OutQuad }
@@ -163,6 +163,18 @@ Item {
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0.6; duration: 180; easing.type: Easing.OutQuad }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 320; easing.type: Easing.OutBounce }
         PauseAnimation { duration: 1000 }
+    }
+
+    // macOS-style bounce while the app is starting (replaces the busy indicator)
+    SequentialAnimation {
+        id: launchAnimation
+        running: !!(iconBox._taskHasModel && iconBox.taskItem.model.IsStartup) && iconBox.config.bounceOnLaunch
+        loops: Animation.Infinite
+        onRunningChanged: if (!running && !attentionAnimation.running) iconBox._attentionLift = 0
+
+        NumberAnimation { target: iconBox; property: "_attentionLift"; to: 1; duration: 260; easing.type: Easing.OutQuad }
+        NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 280; easing.type: Easing.InQuad }
+        PauseAnimation { duration: 120 }
     }
 
     function adjustMargin(isVertical: bool, size: real, margin: real): real {
@@ -304,7 +316,7 @@ Item {
         anchors.centerIn: parent
         width: Math.min(parent.width, parent.height)
         height: width
-        active: !!(iconBox._taskHasModel && iconBox.taskItem.model.IsStartup)
+        active: !!(iconBox._taskHasModel && iconBox.taskItem.model.IsStartup) && !iconBox.config.bounceOnLaunch
         sourceComponent: iconBox.tasksRoot ? iconBox.tasksRoot.busyIndicator : null
     }
 
