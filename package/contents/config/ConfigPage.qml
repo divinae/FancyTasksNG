@@ -36,6 +36,8 @@ Kirigami.Page {
     property int cfg_minimizedFilterDefault: 0
     property bool cfg_unhideOnAttention: false
     property bool cfg_unhideOnAttentionDefault: true
+    property bool cfg_attentionPeek: false
+    property bool cfg_attentionPeekDefault: false
     property bool cfg_animateAttentionStatus: true
     property bool cfg_animateAttentionStatusDefault: true
     property bool cfg_attentionCustomColorEnabled: false

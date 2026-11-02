@@ -29,6 +29,7 @@ import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
+import org.kde.plasma.core as PlasmaCore
 import QtQuick.Effects
 
 import "code/layoutmetrics.js" as LayoutMetrics
@@ -598,6 +599,17 @@ Item {
             alwaysRunToEnd: false
             NumberAnimation { from: 0.55; to: 0.9; duration: 900; easing.type: Easing.InOutSine }
             NumberAnimation { from: 0.9; to: 0.55; duration: 900; easing.type: Easing.InOutSine }
+        }
+    }
+
+    // Peeking icon at the screen edge while this app wants attention (auto-hidden panels)
+    Loader {
+        active: task.demandsAttention && task.config.attentionPeek && !task.inPopup
+            && task.tasksRoot.effectiveLocation !== PlasmaCore.Types.Floating
+        sourceComponent: AttentionPeek {
+            task: task
+            tasksRoot: task.tasksRoot
+            visible: true
         }
     }
 

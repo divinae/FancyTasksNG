@@ -76,6 +76,14 @@ ConfigPage {
         }
 
         CheckBox {
+            text: Wrappers.i18n("Instead, peek the app's icon out of the screen edge (for auto-hidden panels)")
+            Layout.leftMargin: advancedPage.gridUnit
+            enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
+            checked: advancedPage.cfg_attentionPeek
+            onToggled: advancedPage.cfg_attentionPeek = checked
+        }
+
+        CheckBox {
             id: cfg_animateAttentionStatus
             text: Wrappers.i18n("Animate task icon when a window wants attention")
             checked: advancedPage.cfg_animateAttentionStatus

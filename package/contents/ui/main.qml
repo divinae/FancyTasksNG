@@ -655,7 +655,7 @@ PlasmoidItem {
         Binding {
             target: Plasmoid
             property: "status"
-            value: (tasks.tasksModel && (tasks.tasksModel.anyTaskDemandsAttention || BadgeManager.anyUrgent) && tasks.config.unhideOnAttention ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.PassiveStatus)
+            value: (tasks.tasksModel && (tasks.tasksModel.anyTaskDemandsAttention || BadgeManager.anyUrgent) && tasks.config.unhideOnAttention && !tasks.config.attentionPeek ? PlasmaCore.Types.NeedsAttentionStatus : PlasmaCore.Types.PassiveStatus)
             restoreMode: Binding.RestoreBinding
         }
 
