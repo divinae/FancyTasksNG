@@ -575,6 +575,36 @@ PlasmoidItem {
         DesktopActionsManager.webAppTracks(urls, map => tasks.webAppTracks = map);
     }
 
+    // Keep the web app claims fresh while any player exists, so the panel's audio icons
+    // (not only tooltips) follow the media to the right window
+    Timer {
+        interval: 5000
+        repeat: true
+        triggeredOnStart: true
+        running: tasks.mprisPlayers.length > 0
+        onTriggered: tasks.refreshWebAppTracks()
+    }
+
+    // Audio streams that belong to a window. Browsers play from a helper process tagged only
+    // with the browser's name, so name matching would give a web app's audio (e.g. a Spotify
+    // app) to the main browser window: a web app that claims a player gets the streams of
+    // that player's browser, and other windows of that browser don't get them.
+    function audioStreamsFor(pa, appId, pid, appName, launcherUrl) {
+        const own = pa.streamsForApp(appId, pid, appName);
+        const claims = tasks.webAppTracks || {};
+        const myTrack = claims[launcherUrl];
+        if (myTrack) {
+            if (own.length > 0)
+                return own;
+            const player = tasks.playerWithTrack(myTrack);
+            return player ? pa.streamsForAppName(player.identity) : [];
+        }
+        // Streams of a browser whose media is claimed by one of its web app windows
+        const claimedBrowsers = Object.keys(claims).map(url => tasks.playerWithTrack(claims[url]))
+            .filter(player => !!player).map(player => player.identity);
+        return own.filter(stream => claimedBrowsers.indexOf(stream.appName) === -1);
+    }
+
     // The player playing a given track, or null
     function playerWithTrack(track) {
         for (const player of tasks.mprisPlayers) {

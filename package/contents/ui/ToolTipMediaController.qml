@@ -140,7 +140,8 @@ Item {
             return;
         }
 
-        var streams = pa.streamsForApp(appId, appPid, toolTipDelegate.appName);
+        var streams = tasksRoot ? tasksRoot.audioStreamsFor(pa, appId, appPid, toolTipDelegate.appName, launcherUrlString)
+                                : pa.streamsForApp(appId, appPid, toolTipDelegate.appName);
 
         if (streams.length > 0) {
             // Only update cachedVolume from PA when not actively changing volume.
@@ -213,6 +214,13 @@ Item {
         delay: false,
         force: true
     })
+    Connections {
+        target: controller.tasksRoot
+        ignoreUnknownSignals: true
+        function onWebAppTracksChanged() {
+            controller.updateAudioStreams({ delay: false, force: true });
+        }
+    }
     Component.onCompleted: {
         updateAudioStreams({
             delay: false,

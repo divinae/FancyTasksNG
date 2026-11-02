@@ -36,7 +36,8 @@ Item {
             return;
         }
 
-        audioStreams = pa.streamsForApp(taskItem.model.AppId, taskItem.model.AppPid, taskItem.model.AppName);
+        audioStreams = tasksRoot.audioStreamsFor(pa, taskItem.model.AppId, taskItem.model.AppPid, taskItem.model.AppName,
+            String(taskItem.model.LauncherUrlWithoutIcon || ""));
     }
 
     // Toggle mute state for all application streams
@@ -86,6 +87,15 @@ Item {
         target: controller.audioStreamManager ? controller.audioStreamManager.item : null
         ignoreUnknownSignals: true
         function onStreamsChanged(): void {
+            controller.updateAudioStreams();
+        }
+    }
+
+    // Web app claims changed (see main.qml audioStreamsFor)
+    Connections {
+        target: controller.taskItem ? controller.taskItem.tasksRoot : null
+        ignoreUnknownSignals: true
+        function onWebAppTracksChanged(): void {
             controller.updateAudioStreams();
         }
     }
