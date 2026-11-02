@@ -128,29 +128,41 @@ Item {
         }
     ]
 
+    // Jump away from the panel edge: up on bottom panels, right on left panels, etc.
+    readonly property real _attentionJump: Kirigami.Units.gridUnit * 0.6
+    readonly property point _attentionDirection: {
+        switch (iconBox.location) {
+        case PlasmaCore.Types.TopEdge: return Qt.point(0, 1);
+        case PlasmaCore.Types.LeftEdge: return Qt.point(1, 0);
+        case PlasmaCore.Types.RightEdge: return Qt.point(-1, 0);
+        default: return Qt.point(0, -1);
+        }
+    }
+    // 0..1 progress of the jump, mapped onto the translate along the direction above
+    property real _attentionLift: 0
+    Binding {
+        target: attentionTranslate
+        property: "x"
+        value: iconBox._attentionDirection.x * iconBox._attentionJump * iconBox._attentionLift
+    }
+    Binding {
+        target: attentionTranslate
+        property: "y"
+        value: iconBox._attentionDirection.y * iconBox._attentionJump * iconBox._attentionLift
+    }
+
     SequentialAnimation {
         id: attentionAnimation
         running: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
         loops: Animation.Infinite
-        onRunningChanged: if (!running) attentionTranslate.y = 0
+        onRunningChanged: if (!running) iconBox._attentionLift = 0
 
-        NumberAnimation {
-            target: attentionTranslate
-            property: "y"
-            to: -Kirigami.Units.gridUnit / 3.5
-            duration: 300
-            easing.type: Easing.OutQuad
-        }
-        NumberAnimation {
-            target: attentionTranslate
-            property: "y"
-            to: 0
-            duration: 400
-            easing.type: Easing.OutBounce
-        }
-        PauseAnimation {
-            duration: 1500
-        }
+        // Two hops, the second smaller, then a short rest
+        NumberAnimation { target: iconBox; property: "_attentionLift"; to: 1; duration: 220; easing.type: Easing.OutQuad }
+        NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 380; easing.type: Easing.OutBounce }
+        NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0.6; duration: 180; easing.type: Easing.OutQuad }
+        NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 320; easing.type: Easing.OutBounce }
+        PauseAnimation { duration: 1000 }
     }
 
     function adjustMargin(isVertical: bool, size: real, margin: real): real {
