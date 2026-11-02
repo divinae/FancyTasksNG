@@ -63,12 +63,32 @@ PlasmaCore.Dialog {
     }
     onVisibleChanged: if (visible) updatePosition()
 
+    // Only peek while the panel itself is hidden: a panel on screen keeps rendering frames
+    // (Task.qml runs a heartbeat animation meanwhile), a hidden one gets no frame callbacks.
+    // Start as "shown" so an always-visible panel never flashes the peek.
+    property double lastPanelFrame: Date.now()
+    property bool panelShown: true
+    visible: !panelShown
+
     mainItem: Item {
         width: peek.vertical ? peek.alongLength : peek.acrossLength
         height: peek.vertical ? peek.acrossLength : peek.alongLength
         // Everything beyond the window edge (= the screen edge) is hidden, so the icon
         // appears to come out from under the screen
         clip: true
+
+        Connections {
+            target: peek.task ? peek.task.Window.window : null
+            function onFrameSwapped() {
+                peek.lastPanelFrame = Date.now();
+            }
+        }
+        Timer {
+            interval: 100
+            repeat: true
+            running: true
+            onTriggered: peek.panelShown = Date.now() - peek.lastPanelFrame < 300
+        }
 
         Kirigami.Icon {
             id: peekIcon

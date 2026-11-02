@@ -604,12 +604,29 @@ Item {
 
     // Peeking icon at the screen edge while this app wants attention (auto-hidden panels)
     Loader {
+        id: attentionPeekLoader
         active: task.demandsAttention && task.config.attentionPeek && !task.inPopup
             && task.tasksRoot.effectiveLocation !== PlasmaCore.Types.Floating
         sourceComponent: AttentionPeek {
             task: task
             tasksRoot: task.tasksRoot
-            visible: true
+        }
+    }
+
+    // Heartbeat for the peek: a practically invisible animation that keeps the panel window
+    // rendering while the peek is active. A hidden panel gets no frame callbacks, so it stops
+    // rendering; the peek uses that to tell whether the panel is currently on screen.
+    Rectangle {
+        width: 1
+        height: 1
+        color: "black"
+        visible: attentionPeekLoader.active
+        opacity: 0.002
+        SequentialAnimation on opacity {
+            running: attentionPeekLoader.active
+            loops: Animation.Infinite
+            NumberAnimation { to: 0.004; duration: 500 }
+            NumberAnimation { to: 0.002; duration: 500 }
         }
     }
 
