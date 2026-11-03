@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Calmer Attention Over Time:** The longer an app waits for attention unanswered, the longer the pause between bounces (1 s at first, up to 30 s after five minutes), for both the panel icon and the screen-edge peek; the attention background stops pulsing after a minute and stays colored.
 - **Group Tooltips:** With several windows, thumbnail tiles follow each window's shape (narrow terminals get narrow tiles with bigger images), and an option on the Behavior page lists the most recently used windows first.
 - **Progress Color:** The task progress indicator uses the theme's accent color by default (option on the Indicators page); the custom color is still available.
 - **Window Titles in Tooltips:** Window titles are shown under the thumbnails instead of in a small label over them (up to two lines), and in a group the part that differs between the windows is bold while the shared part (e.g. " : claude") is dimmed.

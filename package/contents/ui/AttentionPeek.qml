@@ -112,14 +112,36 @@ PlasmaCore.Dialog {
 
             // Ball-like bounce: fast up, accelerating fall back under the edge, a smaller
             // second hop, then a short rest hidden
-            SequentialAnimation on lift {
-                running: peek.visible
-                loops: Animation.Infinite
-                NumberAnimation { from: 0; to: 1; duration: 280; easing.type: Easing.OutQuad }
-                NumberAnimation { to: 0; duration: 300; easing.type: Easing.InQuad }
-                NumberAnimation { to: 0.4; duration: 170; easing.type: Easing.OutQuad }
-                NumberAnimation { to: 0; duration: 170; easing.type: Easing.InQuad }
-                PauseAnimation { duration: 700 }
+            // One bounce, then a rest that grows the longer the app waits (Task.attentionRestMs)
+            SequentialAnimation {
+                id: peekBounce
+                NumberAnimation { target: peekIcon; property: "lift"; from: 0; to: 1; duration: 280; easing.type: Easing.OutQuad }
+                NumberAnimation { target: peekIcon; property: "lift"; to: 0; duration: 300; easing.type: Easing.InQuad }
+                NumberAnimation { target: peekIcon; property: "lift"; to: 0.4; duration: 170; easing.type: Easing.OutQuad }
+                NumberAnimation { target: peekIcon; property: "lift"; to: 0; duration: 170; easing.type: Easing.InQuad }
+                onFinished: {
+                    if (peek.visible) {
+                        peekRest.interval = peek.task ? peek.task.attentionRestMs() : 1000;
+                        peekRest.start();
+                    }
+                }
+            }
+            Timer {
+                id: peekRest
+                onTriggered: if (peek.visible) peekBounce.start()
+            }
+            Component.onCompleted: if (peek.visible) peekBounce.start()
+            Connections {
+                target: peek
+                function onVisibleChanged() {
+                    if (peek.visible) {
+                        peekBounce.start();
+                    } else {
+                        peekRest.stop();
+                        peekBounce.stop();
+                        peekIcon.lift = 0;
+                    }
+                }
             }
         }
 

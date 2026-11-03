@@ -151,19 +151,38 @@ Item {
         value: iconBox._attentionDirection.y * iconBox._attentionJump * iconBox._attentionLift
     }
 
+    readonly property bool _attentionWanted: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
+    on_AttentionWantedChanged: {
+        if (_attentionWanted) {
+            attentionAnimation.start();
+        } else {
+            attentionRestTimer.stop();
+            attentionAnimation.stop();
+            if (!launchAnimation.running)
+                iconBox._attentionLift = 0;
+        }
+    }
+
+    // One bounce (two hops, the second smaller); the rest between bounces grows the longer
+    // the app waits (Task.attentionRestMs), so a long-ignored app gets less annoying
     SequentialAnimation {
         id: attentionAnimation
-        running: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
-        loops: Animation.Infinite
-        onRunningChanged: if (!running && !launchAnimation.running) iconBox._attentionLift = 0
-
-        // Two hops, the second smaller, then a short rest
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 1; duration: 220; easing.type: Easing.OutQuad }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 380; easing.type: Easing.OutBounce }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0.6; duration: 180; easing.type: Easing.OutQuad }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 320; easing.type: Easing.OutBounce }
-        PauseAnimation { duration: 1000 }
+        onFinished: {
+            if (iconBox._attentionWanted) {
+                attentionRestTimer.interval = iconBox.taskItem.attentionRestMs();
+                attentionRestTimer.start();
+            }
+        }
     }
+    Timer {
+        id: attentionRestTimer
+        onTriggered: if (iconBox._attentionWanted) attentionAnimation.start()
+    }
+    Component.onCompleted: if (_attentionWanted) attentionAnimation.start()
 
     // macOS-style bounce while the app is starting (replaces the busy indicator)
     SequentialAnimation {
