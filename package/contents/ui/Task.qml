@@ -185,24 +185,32 @@ Item {
     readonly property bool demandsAttention: !!task.model && (task.model.IsDemandingAttention === true
         || (BadgeManager.countVersion >= 0 && BadgeManager.getUrgent(task.model.AppId)))
 
-    // Attention like the Windows taskbar: a short burst of animation, then a steady mark
-    property double attentionSince: 0
+    // Attention like the Windows taskbar: a 30 s burst of animation, then a steady colored
+    // mark with one reminder bounce every 5 minutes. One clock (attentionCalm) drives both the
+    // bounce rest and the background pulse; it also runs for a task that already wants
+    // attention when it is created (e.g. after a Plasma restart).
     property bool attentionCalm: false
-    onDemandsAttentionChanged: {
-        attentionSince = demandsAttention ? Date.now() : 0;
+    onDemandsAttentionChanged: restartAttentionBurst()
+    function restartAttentionBurst(): void {
         attentionCalm = false;
+        attentionBurstTimer.restart();
     }
     Timer {
-        // Stop pulsing the attention background after the initial burst; it stays colored
+        id: attentionBurstTimer
         interval: 30000
         running: task.demandsAttention && !task.attentionCalm
         onTriggered: task.attentionCalm = true
     }
-    // Rest between attention bounces: bounce every second for the first 30 s, then only a
-    // single reminder bounce every 5 minutes while the colored mark stays
+    // A new message (unread count going up) while waiting is a new request: burst again
+    property int _attentionBadgeCount: 0
+    onBadgeCountChanged: {
+        if (demandsAttention && badgeCount > _attentionBadgeCount)
+            restartAttentionBurst();
+        _attentionBadgeCount = badgeCount;
+    }
+    // Rest between attention bounces: 1 s during the burst, 5 minutes afterwards
     function attentionRestMs(): int {
-        const waited = task.attentionSince > 0 ? (Date.now() - task.attentionSince) / 1000 : 0;
-        return waited < 30 ? 1000 : 300000;
+        return task.attentionCalm ? 300000 : 1000;
     }
 
     readonly property int badgeCount: {
@@ -975,6 +983,7 @@ Item {
 
     Component.onCompleted: {
         task.lastSeenCount = task.badgeCount;
+        task._attentionBadgeCount = task.badgeCount;
 
         if (!task.inPopup && !task.model.IsWindow) {
             tasksRoot.taskInitComponent.createObject(task);

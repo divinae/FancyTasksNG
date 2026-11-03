@@ -112,7 +112,8 @@ PlasmaCore.Dialog {
 
             // Ball-like bounce: fast up, accelerating fall back under the edge, a smaller
             // second hop, then a short rest hidden
-            // One bounce, then a rest that grows the longer the app waits (Task.attentionRestMs)
+            // One bounce, then a rest: 1 s during the 30 s burst, 5 minutes afterwards
+            // (Task.attentionRestMs)
             SequentialAnimation {
                 id: peekBounce
                 NumberAnimation { target: peekIcon; property: "lift"; from: 0; to: 1; duration: 280; easing.type: Easing.OutQuad }
@@ -130,12 +131,32 @@ PlasmaCore.Dialog {
                 id: peekRest
                 onTriggered: if (peek.visible) peekBounce.start()
             }
-            Component.onCompleted: if (peek.visible) peekBounce.start()
+            // Becoming visible (e.g. the panel hid again) bounces only during the burst;
+            // afterwards it just resumes the 5-minute reminder
+            function resume() {
+                if (!peek.task || !peek.task.attentionCalm)
+                    peekBounce.start();
+                else if (!peekRest.running) {
+                    peekRest.interval = peek.task.attentionRestMs();
+                    peekRest.start();
+                }
+            }
+            Component.onCompleted: if (peek.visible) resume()
+            Connections {
+                target: peek.task
+                ignoreUnknownSignals: true
+                function onAttentionCalmChanged() {
+                    if (peek.visible && !peek.task.attentionCalm && !peekBounce.running) {
+                        peekRest.stop();
+                        peekBounce.start();
+                    }
+                }
+            }
             Connections {
                 target: peek
                 function onVisibleChanged() {
                     if (peek.visible) {
-                        peekBounce.start();
+                        peekIcon.resume();
                     } else {
                         peekRest.stop();
                         peekBounce.stop();

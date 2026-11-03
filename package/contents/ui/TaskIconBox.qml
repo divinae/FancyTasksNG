@@ -154,7 +154,14 @@ Item {
     readonly property bool _attentionWanted: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
     on_AttentionWantedChanged: {
         if (_attentionWanted) {
-            attentionAnimation.start();
+            // After the burst, coming back (e.g. the mouse left the icon) only resumes the
+            // 5-minute reminder instead of bouncing right away
+            if (!iconBox.taskItem.attentionCalm)
+                attentionAnimation.start();
+            else if (!attentionRestTimer.running) {
+                attentionRestTimer.interval = iconBox.taskItem.attentionRestMs();
+                attentionRestTimer.start();
+            }
         } else {
             attentionRestTimer.stop();
             attentionAnimation.stop();
@@ -163,8 +170,8 @@ Item {
         }
     }
 
-    // One bounce (two hops, the second smaller); the rest between bounces grows the longer
-    // the app waits (Task.attentionRestMs), so a long-ignored app gets less annoying
+    // One bounce (two hops, the second smaller); between bounces it rests 1 s during the
+    // 30 s burst and 5 minutes afterwards (Task.attentionRestMs)
     SequentialAnimation {
         id: attentionAnimation
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 1; duration: 220; easing.type: Easing.OutQuad }
@@ -181,6 +188,17 @@ Item {
     Timer {
         id: attentionRestTimer
         onTriggered: if (iconBox._attentionWanted) attentionAnimation.start()
+    }
+    // A new burst (new request or new message): bounce right away
+    Connections {
+        target: iconBox.taskItem
+        ignoreUnknownSignals: true
+        function onAttentionCalmChanged() {
+            if (!iconBox.taskItem.attentionCalm && iconBox._attentionWanted && !attentionAnimation.running) {
+                attentionRestTimer.stop();
+                attentionAnimation.start();
+            }
+        }
     }
     Component.onCompleted: if (_attentionWanted) attentionAnimation.start()
 
