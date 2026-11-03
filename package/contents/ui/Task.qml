@@ -185,7 +185,7 @@ Item {
     readonly property bool demandsAttention: !!task.model && (task.model.IsDemandingAttention === true
         || (BadgeManager.countVersion >= 0 && BadgeManager.getUrgent(task.model.AppId)))
 
-    // Attention backoff: the longer an app waits unanswered, the calmer its animations get
+    // Attention like the Windows taskbar: a short burst of animation, then a steady mark
     property double attentionSince: 0
     property bool attentionCalm: false
     onDemandsAttentionChanged: {
@@ -193,19 +193,16 @@ Item {
         attentionCalm = false;
     }
     Timer {
-        // Stop pulsing the attention background after a minute; it stays colored
-        interval: 60000
+        // Stop pulsing the attention background after the initial burst; it stays colored
+        interval: 30000
         running: task.demandsAttention && !task.attentionCalm
         onTriggered: task.attentionCalm = true
     }
-    // Rest between attention bounces: 1 s at first, up to 30 s after five minutes
+    // Rest between attention bounces: bounce every second for the first 30 s, then only a
+    // single reminder bounce every 5 minutes while the colored mark stays
     function attentionRestMs(): int {
         const waited = task.attentionSince > 0 ? (Date.now() - task.attentionSince) / 1000 : 0;
-        if (waited < 30) return 1000;
-        if (waited < 60) return 3000;
-        if (waited < 120) return 6000;
-        if (waited < 300) return 12000;
-        return 30000;
+        return waited < 30 ? 1000 : 300000;
     }
 
     readonly property int badgeCount: {
@@ -617,8 +614,8 @@ Item {
         radius: Kirigami.Units.cornerRadius
         color: task.config.attentionCustomColorEnabled ? task.config.attentionCustomColor : Kirigami.Theme.neutralTextColor
 
-        // Gentle pulse so a waiting app catches the eye without being harsh; after a minute
-        // unanswered it stops pulsing and stays at a steady, still visible opacity
+        // Gentle pulse so a waiting app catches the eye; after the initial 30 s burst it stops
+        // pulsing and stays at a steady, still visible opacity
         opacity: 0.7
         SequentialAnimation on opacity {
             running: attentionBackground.visible && !task.attentionCalm
