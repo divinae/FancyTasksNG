@@ -151,55 +151,21 @@ Item {
     }
 
     readonly property bool _attentionWanted: iconBox._taskHasModel && iconBox.taskItem.demandsAttention && iconBox._iconsOnly && iconBox.config.animateAttentionStatus && !iconBox._taskHighlighted
-    on_AttentionWantedChanged: {
-        if (_attentionWanted) {
-            // After the burst, coming back (e.g. the mouse left the icon) only resumes the
-            // 5-minute reminder instead of bouncing right away
-            if (!iconBox.taskItem.attentionCalm)
-                attentionAnimation.start();
-            else if (!attentionRestTimer.running) {
-                attentionRestTimer.interval = iconBox.taskItem.attentionRestMs();
-                attentionRestTimer.start();
-            }
-        } else {
-            attentionRestTimer.stop();
-            attentionAnimation.stop();
-            if (!launchAnimation.running)
-                iconBox._attentionLift = 0;
-        }
-    }
 
-    // One bounce (two hops, the second smaller); between bounces it rests 1 s during the
-    // 30 s burst and 5 minutes afterwards (Task.attentionRestMs)
+    // One bounce (two hops, the second smaller), scheduled by AttentionBouncer
     SequentialAnimation {
         id: attentionAnimation
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 1; duration: 220; easing.type: Easing.OutQuad }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 380; easing.type: Easing.OutBounce }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0.6; duration: 180; easing.type: Easing.OutQuad }
         NumberAnimation { target: iconBox; property: "_attentionLift"; to: 0; duration: 320; easing.type: Easing.OutBounce }
-        onFinished: {
-            if (iconBox._attentionWanted) {
-                attentionRestTimer.interval = iconBox.taskItem.attentionRestMs();
-                attentionRestTimer.start();
-            }
-        }
     }
-    Timer {
-        id: attentionRestTimer
-        onTriggered: if (iconBox._attentionWanted) attentionAnimation.start()
+    AttentionBouncer {
+        task: iconBox.taskItem
+        active: iconBox._attentionWanted
+        animation: attentionAnimation
+        onStopped: if (!launchAnimation.running) iconBox._attentionLift = 0
     }
-    // A new burst (new request or new message): bounce right away
-    Connections {
-        target: iconBox.taskItem
-        ignoreUnknownSignals: true
-        function onAttentionCalmChanged() {
-            if (!iconBox.taskItem.attentionCalm && iconBox._attentionWanted && !attentionAnimation.running) {
-                attentionRestTimer.stop();
-                attentionAnimation.start();
-            }
-        }
-    }
-    Component.onCompleted: if (_attentionWanted) attentionAnimation.start()
 
     // macOS-style bounce while the app is starting (replaces the busy indicator)
     SequentialAnimation {

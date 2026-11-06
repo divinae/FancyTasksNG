@@ -111,58 +111,19 @@ PlasmaCore.Dialog {
             }
 
             // Ball-like bounce: fast up, accelerating fall back under the edge, a smaller
-            // second hop, then a short rest hidden
-            // One bounce, then a rest: 1 s during the 30 s burst, 5 minutes afterwards
-            // (Task.attentionRestMs)
+            // second hop; scheduled by AttentionBouncer, resting hidden in between
             SequentialAnimation {
                 id: peekBounce
                 NumberAnimation { target: peekIcon; property: "lift"; from: 0; to: 1; duration: 280; easing.type: Easing.OutQuad }
                 NumberAnimation { target: peekIcon; property: "lift"; to: 0; duration: 300; easing.type: Easing.InQuad }
                 NumberAnimation { target: peekIcon; property: "lift"; to: 0.4; duration: 170; easing.type: Easing.OutQuad }
                 NumberAnimation { target: peekIcon; property: "lift"; to: 0; duration: 170; easing.type: Easing.InQuad }
-                onFinished: {
-                    if (peek.visible) {
-                        peekRest.interval = peek.task ? peek.task.attentionRestMs() : 1000;
-                        peekRest.start();
-                    }
-                }
             }
-            Timer {
-                id: peekRest
-                onTriggered: if (peek.visible) peekBounce.start()
-            }
-            // Becoming visible (e.g. the panel hid again) bounces only during the burst;
-            // afterwards it just resumes the 5-minute reminder
-            function resume() {
-                if (!peek.task || !peek.task.attentionCalm)
-                    peekBounce.start();
-                else if (!peekRest.running) {
-                    peekRest.interval = peek.task.attentionRestMs();
-                    peekRest.start();
-                }
-            }
-            Component.onCompleted: if (peek.visible) resume()
-            Connections {
-                target: peek.task
-                ignoreUnknownSignals: true
-                function onAttentionCalmChanged() {
-                    if (peek.visible && !peek.task.attentionCalm && !peekBounce.running) {
-                        peekRest.stop();
-                        peekBounce.start();
-                    }
-                }
-            }
-            Connections {
-                target: peek
-                function onVisibleChanged() {
-                    if (peek.visible) {
-                        peekIcon.resume();
-                    } else {
-                        peekRest.stop();
-                        peekBounce.stop();
-                        peekIcon.lift = 0;
-                    }
-                }
+            AttentionBouncer {
+                task: peek.task
+                active: peek.visible
+                animation: peekBounce
+                onStopped: peekIcon.lift = 0
             }
         }
 
