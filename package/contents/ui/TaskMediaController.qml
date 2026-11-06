@@ -113,9 +113,15 @@ Item {
         }
     }
 
-    Component.onCompleted: {
+    function initialUpdate(): void {
         if (taskItem && !taskItem.inPopup && taskItem.model && taskItem.model.IsWindow) {
             updateAudioStreams();
         }
     }
+
+    // Task.qml's Loader assigns taskItem in onLoaded, i.e. after
+    // Component.onCompleted, so the first update has to happen here too.
+    onTaskItemChanged: initialUpdate()
+
+    Component.onCompleted: initialUpdate()
 }

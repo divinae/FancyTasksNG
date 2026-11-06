@@ -104,23 +104,6 @@ QtObject {
             function setVolume(vol): void {
                 model.Volume = vol;
             }
-
-            onPidChanged: {
-                if (pid > 0) restoreVolume();
-            }
-            
-            function restoreVolume() {
-                var cached = audioStreamManager.getCachedVolume(pid);
-                if (cached > 0) { 
-                    setVolume(cached);
-                }
-            }
-            
-            onVolumeChanged: {
-                if (pid > 0) {
-                     audioStreamManager.saveVolume(pid, volume);
-                }
-            }
         }
 
         onObjectAdded: (index, object) => {
@@ -180,21 +163,15 @@ QtObject {
     // Expose volume constants if valid, otherwise fallback
     readonly property int minimalVolume: PlasmaPa.PulseAudio.MinimalVolume ?? 0
     readonly property int normalVolume: PlasmaPa.PulseAudio.NormalVolume ?? 65536
+    // Upper limit for raising volume: 150% when plasma-pa's "Raise maximum volume" is on
+    // (same as the plasma-pa applet), else 100%
+    readonly property int maximumVolume: globalConfig["raiseMaximumVolume"]
+        ? Math.round(normalVolume * 1.5) : normalVolume
 
-    // Persistent Volume Cache (Key: WinID or PID)
-    property var volumeCache: ({})
-
-    function saveVolume(key, vol: int) {
-        if (key) {
-            volumeCache[key] = vol;
-        }
-    }
-
-    function getCachedVolume(key): int {
-        if (key && volumeCache[key] !== undefined) {
-            return volumeCache[key];
-        }
-        return -1;
+    // Clamp a target volume: never below minimal, never above the maximum, but a volume
+    // that already is above the maximum (set elsewhere) isn't pulled down by raising it
+    function clampVolume(target: real, current: real): int {
+        return Math.round(Math.max(minimalVolume, Math.min(target, Math.max(current, maximumVolume))));
     }
 
     function adjustObjectVolume(obj, increment) {
@@ -202,7 +179,7 @@ QtObject {
         
         const step = (normalVolume - minimalVolume) * (globalConfig["volumeStep"] || 5) / 100;
         const currentVolume = obj.Volume !== undefined ? obj.Volume : (obj.volume !== undefined ? obj.volume : 0);
-        const newVolume = Math.round(Math.max(minimalVolume, Math.min(currentVolume + (step * increment), normalVolume)));
+        const newVolume = clampVolume(currentVolume + (step * increment), currentVolume);
         
         if (obj.setVolume !== undefined) {
             obj.setVolume(newVolume);

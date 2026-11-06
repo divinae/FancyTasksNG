@@ -169,7 +169,7 @@ Item {
         // Compute an absolute target and delegate to setVolume — same path as the slider.
         // appVolume returns the live PA value when idle, or cachedVolume during rapid
         // scrolling, so accumulation is always correct without any separate caching logic.
-        setVolume(Math.max(pa.minimalVolume, Math.min(pa.normalVolume, appVolume + increment)));
+        setVolume(pa.clampVolume(appVolume + increment, appVolume));
     }
 
     function setVolume(value) {

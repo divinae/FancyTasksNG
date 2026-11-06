@@ -214,6 +214,13 @@ Item {
                 pinnedAppDelegate.pageRoot.dragItemIndex = -1;
                 pinnedAppDelegate.pageRoot.dropItemIndex = -1;
 
+                // A plain click (no drag over the list) leaves dropItemIndex
+                // at -1; clamping that to 0 would move the row to the top.
+                if (dropIdx === -1) {
+                    pinnedAppDelegate.pageRoot.refreshPinnedAppsModel();
+                    return;
+                }
+
                 var targetIndex = dropIdx <= dragIdx ? dropIdx : dropIdx - 1;
                 if (targetIndex < 0) targetIndex = 0;
                 if (targetIndex >= pinnedAppDelegate.pinnedModel.count) targetIndex = pinnedAppDelegate.pinnedModel.count - 1;

@@ -31,27 +31,36 @@ function volumeIconName(muted, fraction) {
     return "audio-volume-high";
 }
 
+// Streams whose delegate still exists. ToolTipMediaController keeps its last streams for a
+// moment after they vanish (streamClearTimer); by then the Instantiator may have destroyed
+// the delegates, which leaves wrappers whose methods and properties are gone.
+function liveStreams(streams) {
+    return streams.filter(stream => !!stream && typeof stream.mute === "function");
+}
+
 // Whether there are streams and all of them are muted
 function streamsMuted(streams) {
-    return streams.length > 0 && streams.every(stream => stream.muted);
+    const live = liveStreams(streams);
+    return live.length > 0 && live.every(stream => stream.muted);
 }
 
 // Whether any stream is actually playing (not corked)
 function streamsPlaying(streams) {
-    return streams.some(stream => !stream.corked);
+    return liveStreams(streams).some(stream => !stream.corked);
 }
 
 // Unmute all streams if all are muted, otherwise mute them all
 function toggleStreamsMuted(streams) {
-    if (streamsMuted(streams))
-        streams.forEach(stream => stream.unmute());
+    const live = liveStreams(streams);
+    if (streamsMuted(live))
+        live.forEach(stream => stream.unmute());
     else
-        streams.forEach(stream => stream.mute());
+        live.forEach(stream => stream.mute());
 }
 
 // Highest volume among the streams that report one, or -1 if none does
 function maxStreamVolume(streams) {
-    const valid = streams.filter(stream => stream && typeof stream.volume !== 'undefined');
+    const valid = liveStreams(streams).filter(stream => typeof stream.volume === "number");
     if (valid.length === 0)
         return -1;
     return valid.reduce((max, stream) => Math.max(max, stream.volume), 0);

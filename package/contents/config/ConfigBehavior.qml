@@ -268,7 +268,9 @@ ConfigPage {
                 currentIndex: behaviorPage.cfg_wheelAction
                 onActivated: index => {
                     behaviorPage.cfg_wheelAction = index;
-                    if (index === 5 && behaviorPage.cfg_wheelCtrlAction === 5) {
+                    // The Ctrl combo hides the plain wheel's action; don't leave
+                    // Ctrl set to an entry it no longer lists
+                    if (index !== 0 && behaviorPage.cfg_wheelCtrlAction === index) {
                         behaviorPage.cfg_wheelCtrlAction = 0;
                     }
                 }
@@ -301,6 +303,7 @@ ConfigPage {
             }
 
             // Ctrl sub-options: every action except the one already on the plain wheel
+            // ("Does nothing" is always listed, so it can't fall out of the list)
             FormCard.FormComboBoxDelegate {
                 id: cfg_wheelCtrlAction
                 visible: cfg_wheelCtrlActionEnabled.checked
@@ -309,7 +312,7 @@ ConfigPage {
                     const fullModel = cfg_wheelAction.model;
                     const filtered = [];
                     for (let i = 0; i < fullModel.length; i++) {
-                        if (i !== cfg_wheelAction.currentIndex) {
+                        if (i === 0 || i !== cfg_wheelAction.currentIndex) {
                             filtered.push({
                                 text: fullModel[i],
                                 originalIndex: i
