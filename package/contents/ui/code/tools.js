@@ -101,9 +101,14 @@ function appNameFromTitle(appName, display) {
 // A window title "shows" a track if it starts with it, ignoring a "(3) " unread prefix, so
 // "Numb lyrics - Google Search" doesn't claim the track "Numb"
 function titleShowsTrack(windowTitle, track) {
+    // The track must be followed by the end of the title or a separator, so a "Notes.md"
+    // window doesn't claim a track called "Notes"
     track = String(track || "").trim();
-    const cleaned = String(windowTitle || "").replace(/^\(\d+\)\s*/, "").toLowerCase();
-    return track.length > 0 && cleaned.startsWith(track.toLowerCase());
+    if (track.length === 0)
+        return false;
+    const cleaned = String(windowTitle || "").replace(/^\(\d+\)\s*/, "");
+    const escaped = track.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`^${escaped}(?:\\s*$|\\s+[-–—|:·•])`, "i").test(cleaned);
 }
 
 // Prefix and suffix shared by all titles (cut at separators such as spaces, ":" or "-"),

@@ -168,19 +168,24 @@ PlasmoidItem {
         if (!Array.isArray(savedOrder) || savedOrder.length === 0)
             return;
 
-        // Mirrors the model's order locally, updated after each move() so
-        // later lookups search post-move positions.
-        const current = [];
-        for (let i = 0; i < tasks.tasksModel.count; i++) {
-            current.push(tasks.taskOrderIdentifierAt(i));
-        }
+        // Mirrors the model's order locally, re-read after each successful move() so later
+        // lookups search post-move positions (a move can shift several rows, e.g. inline groups)
+        const readOrder = () => {
+            const order = [];
+            for (let i = 0; i < tasks.tasksModel.count; i++) {
+                order.push(tasks.taskOrderIdentifierAt(i));
+            }
+            return order;
+        };
+        let current = readOrder();
 
         for (let target = 0; target < savedOrder.length && target < current.length; target++) {
             const from = current.indexOf(savedOrder[target], target);
             if (from === -1 || from === target)
                 continue;
-            tasks.tasksModel.move(from, target);
-            current.splice(target, 0, current.splice(from, 1)[0]);
+            // A refused move (e.g. across the launcher boundary) leaves the model as it was
+            if (tasks.tasksModel.move(from, target))
+                current = readOrder();
         }
     }
 
@@ -616,10 +621,6 @@ PlasmoidItem {
         watchedService: "org.kde.KWin.Effect.WindowView1"
     }
 
-    readonly property Component taskInitComponent: Component {
-        Item {}
-    }
-
     Connections {
         target: Plasmoid
         function onLocationChanged(): void {
@@ -852,10 +853,20 @@ PlasmoidItem {
             globalVolumeOverlayLoader.item[pShow]();
         }
     }
+    // Persistent version of a tasksModel index (top-level or group child), so it follows
+    // its row when rows shift; other indexes are returned unchanged
+    function persistentTaskIndex(modelIndex) {
+        if (!modelIndex || !modelIndex.valid || modelIndex.model !== tasks.tasksModel)
+            return modelIndex;
+        const parent = modelIndex.parent;
+        return parent && parent.valid
+            ? tasks.tasksModel.makePersistentModelIndex(parent.row, modelIndex.row)
+            : tasks.tasksModel.makePersistentModelIndex(modelIndex.row);
+    }
     function createContextMenu(rootTask, modelIndex, args = {}) {
         const initialArgs = Object.assign(args, {
             visualParent: rootTask,
-            modelIndex,
+            modelIndex: tasks.persistentTaskIndex(modelIndex),
             mpris2Source: mpris2SourceModel,
             tasksModel: tasks.tasksModel,
             virtualDesktopInfo,
@@ -926,8 +937,17 @@ PlasmoidItem {
             Drag.dragType: Drag.Automatic
             Drag.supportedActions: Qt.CopyAction | Qt.MoveAction | Qt.LinkAction
 
-            // Holds the launcher URL while waiting for the unpin animation to finish.
-            property string pendingUnpinUrl: ""
+            // Launchers waiting for their unpin animation to finish, as {url, due} (ms timestamps)
+            property var pendingUnpins: []
+            readonly property int unpinDelay: 300
+
+            function queueUnpin(url: string): void {
+                dragHelper.pendingUnpins.push({ url, due: Date.now() + dragHelper.unpinDelay });
+                if (!unpinDelayTimer.running) {
+                    unpinDelayTimer.interval = dragHelper.unpinDelay;
+                    unpinDelayTimer.start();
+                }
+            }
 
             // Delays the actual model removal so the explosion animation has time to play.
             Timer {
@@ -935,9 +955,14 @@ PlasmoidItem {
                 interval: 300
                 repeat: false
                 onTriggered: {
-                    if (dragHelper.pendingUnpinUrl !== "") {
-                        tasks.removeLauncher(dragHelper.pendingUnpinUrl);
-                        dragHelper.pendingUnpinUrl = "";
+                    const now = Date.now();
+                    const due = dragHelper.pendingUnpins.filter(entry => entry.due <= now + 10);
+                    dragHelper.pendingUnpins = dragHelper.pendingUnpins.filter(entry => entry.due > now + 10);
+                    for (const entry of due)
+                        tasks.removeLauncher(entry.url);
+                    if (dragHelper.pendingUnpins.length > 0) {
+                        interval = Math.max(1, dragHelper.pendingUnpins[0].due - now);
+                        start();
                     }
                 }
             }
@@ -946,7 +971,7 @@ PlasmoidItem {
                 // If a pure launcher (no running windows) is dragged outside the panel,
                 // treat it as an "unpin" gesture.
                 // We check both Qt.IgnoreAction (nothing accepted the drop) AND
-                // dragEndedOutsidePanel (set by position check in Task.qml's DragHandler),
+                // dragEndedOutsidePanel (set when the drag leaves the panel DropArea, MouseHandler.qml),
                 // because Plasma desktop or other shell components may accept the drag
                 // and return a non-IgnoreAction even when the user clearly dropped outside.
                 const source = tasks.dragSource;
@@ -956,8 +981,7 @@ PlasmoidItem {
                     if (tasks.config.unpinByDragExplosion && tasks.config.iconOnly === 1) {
                         explosionManager.spawn(tasks, source, true);
                         // Delay removal so the explosion animation plays before the item disappears.
-                        dragHelper.pendingUnpinUrl = source[pModel].LauncherUrlWithoutIcon.toString();
-                        unpinDelayTimer.start();
+                        dragHelper.queueUnpin(source[pModel].LauncherUrlWithoutIcon.toString());
                     } else {
                         tasks.removeLauncher(source[pModel].LauncherUrlWithoutIcon);
                     }

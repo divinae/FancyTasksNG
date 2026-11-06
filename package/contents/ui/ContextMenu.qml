@@ -33,7 +33,9 @@ PlasmaExtras.Menu {
     id: menu
 
     required property Mpris.Mpris2Model mpris2Source
-    required property /*QModelIndex*/ var modelIndex
+    // A QPersistentModelIndex (see createContextMenu in main.qml), so the actions still hit
+    // this task when rows are inserted, removed or moved while the menu is open
+    required property /*QPersistentModelIndex*/ var modelIndex
     required property TaskManager.TasksModel tasksModel
     required property TaskManager.VirtualDesktopInfo virtualDesktopInfo
     required property TaskManager.ActivityInfo activityInfo
@@ -43,6 +45,9 @@ PlasmaExtras.Menu {
     readonly property var atm: TaskManager.AbstractTasksModel
 
     property bool showAllPlaces: false
+    // Captured when the menu opens, so Force Quit kills the app the menu was opened for
+    property int _forceQuitPid: 0
+    property string _forceQuitAppName: ""
     property var firstMediaItem: null
 
     placement: {
@@ -76,9 +81,18 @@ PlasmaExtras.Menu {
         }
     }
 
-    Component.onCompleted: {}
-
-    Component.onDestruction: {}
+    // The task went away while the menu was open: its actions have nothing to act on.
+    // Declared as a property: PlasmaExtras.Menu's default property only takes menu items
+    readonly property Connections _taskRemovedWatcher: Connections {
+        target: menu.tasksModel
+        function onRowsRemoved(): void {
+            if (!menu.modelIndex || !menu.modelIndex.valid)
+                menu.close();
+        }
+        function onModelReset(): void {
+            menu.close();
+        }
+    }
 
 
     function get(modelProp: int): var {
@@ -124,6 +138,8 @@ PlasmaExtras.Menu {
     function show(): void {
         Plasmoid.contextualActionsAboutToShow();
         _otherAppWindows = otherAppWindows();
+        _forceQuitPid = get(atm.AppPid) || 0;
+        _forceQuitAppName = get(atm.AppName) || "";
         if (launcherUrlString !== "")
             DesktopActionsManager.refreshAutostart(launcherUrlString);
 
@@ -1020,7 +1036,7 @@ PlasmaExtras.Menu {
     // one-item submenu so it can't be triggered by a stray click.
     PlasmaExtras.MenuItem {
         id: forceQuitItem
-        visible: visualParent && !get(atm.IsLauncher) && !get(atm.IsStartup) && (get(atm.AppPid) || 0) > 0
+        visible: visualParent && !get(atm.IsLauncher) && !get(atm.IsStartup) && menu._forceQuitPid > 0
 
         text: Wrappers.i18nc("@item:inmenu", "&Force Quit")
         icon: "process-stop"
@@ -1032,10 +1048,12 @@ PlasmaExtras.Menu {
 
         Component.onCompleted: {
             const confirm = menu.newMenuItem(forceQuitMenu);
-            confirm.text = Qt.binding(() => Wrappers.i18nc("@item:inmenu", "Force quit %1 (unsaved work is lost)", menu.get(menu.atm.AppName) || ""));
+            confirm.text = Qt.binding(() => Wrappers.i18nc("@item:inmenu", "Force quit %1 (unsaved work is lost)", menu._forceQuitAppName));
             confirm.icon = "process-stop";
             confirm.clicked.connect(() => {
-                const pid = menu.get(menu.atm.AppPid);
+                const pid = menu._forceQuitPid;
+                if (pid <= 0)
+                    return;
                 DesktopActionsManager.killApp(pid, reply => {
                     if (!reply.startsWith("OK"))
                         console.warn("Taskline: force quit failed:", reply);

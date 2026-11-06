@@ -35,11 +35,21 @@ DropArea {
             event.accepted = false;
         }
         target.animating = false;
+        dropArea.tasks.dragEndedOutsidePanel = false;
+    }
+
+    // The task list item under a point in this DropArea's coordinates. The list sits inside
+    // a container that is offset when the tasks are centered, so map before childAt().
+    function itemAt(x: real, y: real): var {
+        const pos = dropArea.mapToItem(dropArea.target, x, y);
+        return dropArea.target.childAt(pos.x, pos.y);
     }
 
     onPositionChanged: event => {
-        let above;
-        above = target.childAt(event.x, event.y);
+        // Still over the panel; see onExited
+        dropArea.tasks.dragEndedOutsidePanel = false;
+
+        const above = dropArea.itemAt(event.x, event.y);
 
         if (!above) {
             hoveredItem = null;
@@ -54,33 +64,25 @@ DropArea {
                 const tasks = dropArea.tasks;
                 const dropIndicator = tasks.dropIndicator;
                 
-                // Map event to targetItem's coordinates to decide left/right side
-                const pos = above.mapFromItem(dropArea, event.x, event.y);
-                
-                // Map items to indicator's parent coordinates
-                const indicatorPos = tasks.mapFromItem(above, 0, 0);
-                
+                // Work in the indicator's coordinates (the applet root). Tasks there run
+                // top-to-bottom when vertical (reverse mode rotates the whole applet, and each
+                // task again about its own center, so the item's local axes can't be used), and
+                // left-to-right horizontally unless the layout is mirrored (RTL / reverse mode).
+                const pos = tasks.mapFromItem(dropArea, event.x, event.y);
+                const rect = tasks.mapFromItem(above, 0, 0, above.width, above.height);
+
                 let dropIndex;
                 if (tasks.vertical) {
-                    if (pos.y < above.height / 2) {
-                        dropIndex = above.index;
-                        dropIndicator.x = indicatorPos.x;
-                        dropIndicator.y = indicatorPos.y;
-                    } else {
-                        dropIndex = above.index + 1;
-                        dropIndicator.x = indicatorPos.x;
-                        dropIndicator.y = indicatorPos.y + above.height;
-                    }
+                    const upperHalf = pos.y < rect.y + rect.height / 2;
+                    dropIndex = upperHalf ? above.index : above.index + 1;
+                    dropIndicator.x = rect.x;
+                    dropIndicator.y = upperHalf ? rect.y : rect.y + rect.height;
                 } else {
-                    if (pos.x < above.width / 2) {
-                        dropIndex = above.index;
-                        dropIndicator.x = indicatorPos.x;
-                        dropIndicator.y = indicatorPos.y;
-                    } else {
-                        dropIndex = above.index + 1;
-                        dropIndicator.x = indicatorPos.x + above.width;
-                        dropIndicator.y = indicatorPos.y;
-                    }
+                    const leftHalf = pos.x < rect.x + rect.width / 2;
+                    const mirrored = tasks.shouldBeMirrored(dropArea.config.reverseMode, Qt.locale().textDirection, false);
+                    dropIndex = leftHalf !== mirrored ? above.index : above.index + 1;
+                    dropIndicator.x = leftHalf ? rect.x : rect.x + rect.width;
+                    dropIndicator.y = rect.y;
                 }
                 
                 const allowed = dropArea.canMoveTo(dragSource.index, dropIndex);
@@ -116,6 +118,10 @@ DropArea {
     }
 
     onExited: {
+        // Tells Drag.onDragFinished (main.qml) that a task drag was released off the panel;
+        // cleared again if the drag comes back (onEntered/onPositionChanged) or drops here
+        if (dropArea.tasks.dragSource)
+            dropArea.tasks.dragEndedOutsidePanel = true;
         dropArea.tasks.dropIndicator.visible = false;
         if (hoveredItem && hoveredItem.toolTipOpen) {
             hideTooltipTimer.itemToHide = hoveredItem;
@@ -138,6 +144,7 @@ DropArea {
     }
 
     onDropped: event => {
+        dropArea.tasks.dragEndedOutsidePanel = false;
         // Handle internal task reordering
         if (event.formats.indexOf("application/x-orgkdeplasmataskmanager_taskbuttonitem") >= 0) {
             const dragSource = dropArea.tasks.dragSource;
@@ -230,7 +237,7 @@ DropArea {
 
             if (increment === 0) return;
 
-            const anchor = dropArea.target.childAt(event.x, event.y);
+            const anchor = dropArea.itemAt(event.x, event.y);
             const isCtrl = (event.modifiers & Qt.ControlModifier) && dropArea.config.wheelCtrlActionEnabled;
             const action = isCtrl ? dropArea.config.wheelCtrlAction : dropArea.config.wheelAction;
 

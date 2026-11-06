@@ -172,7 +172,7 @@ Item {
         appId: root.parentTask?.model?.AppId || ""
 
         isUrgent: (root.config.badgeHighlightNew && !!root.parentTask?.hasUnseenNotifications)
-                  || !!root.parentTask?.model?.DemandsAttention
+                  || !!root.parentTask?.demandsAttention
         isRound: true
         isBold: false
         fontFactor: 0.7

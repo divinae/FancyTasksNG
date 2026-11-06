@@ -268,6 +268,9 @@ Item {
     function adjustVolume(increment, isGlobal) {
         if (mediaController) {
             mediaController.adjustVolume(increment, isGlobal);
+        } else if (isGlobal) {
+            // Launchers and startup tasks have no media controller; global volume still applies
+            tasksRoot.adjustGlobalVolume(increment);
         }
     }
 
@@ -541,12 +544,6 @@ Item {
 
 
 
-    onIsWindowChanged: {
-        if (task.model && task.model.IsWindow) {
-            tasksRoot.taskInitComponent.createObject(task);
-        }
-    }
-
     onChildCountChanged: {
         if (task.model && TaskTools.taskManagerInstanceCount < 2 && task.childCount > task.previousChildCount) {
             tasksRoot.tasksModel.requestPublishDelegateGeometry(task.modelIndex(), task.getGlobalRect(), task);
@@ -614,8 +611,11 @@ Item {
                 return tasksRoot.filteredTasksModel.mapToSource(proxyIdx);
             }
         }
-        if (tasksRoot && tasksRoot.tasksModel && task.index >= 0) {
-            return tasksRoot.tasksModel.makeModelIndex(task.index);
+        if (tasksRoot && tasksRoot.tasksModel) {
+            // Delegate rows are tasksModel rows only when the filter proxy isn't in use;
+            // otherwise return an invalid index rather than the wrong task's
+            const unfiltered = tasksRoot.effectiveTasksModel === tasksRoot.tasksModel;
+            return tasksRoot.tasksModel.makeModelIndex(unfiltered ? task.index : -1);
         }
         return undefined;
     }
@@ -912,16 +912,8 @@ Item {
                             task.tasksRoot.dragHelper.Drag.active = dragHandler.active;
                         }, Qt.size(grabWidth, grabHeight));
                 } else {
-                    // Before clearing drag state, check if the cursor ended outside the panel.
-                    // This is used in main.qml's Drag.onDragFinished as a reliable unpin signal,
-                    // because some Plasma components may accept the drag (returning non-IgnoreAction)
-                    // even when the user clearly dropped outside the panel area.
-                    const isPureLauncher = task.model.IsLauncher && task.winIdList.length === 0;
-                    if (task.config.unpinByDrag && isPureLauncher) {
-                        const localPos = task.tasksRoot.taskList.mapFromItem(null, dragHandler.centroid.scenePosition);
-                        task.tasksRoot.dragEndedOutsidePanel = localPos.x < 0 || localPos.y < 0 || localPos.x > task.tasksRoot.taskList.width || localPos.y > task.tasksRoot.taskList.height;
-                    }
-
+                    // Whether the drag ended off the panel is tracked by the panel's DropArea
+                    // (MouseHandler.qml): this handler sees no motion once the system drag runs.
                     setRequestedInhibitDnd(false);
                     task.tasksRoot.dragHelper.Drag.active = false;
                     task.tasksRoot.dragHelper.Drag.imageSource = "";
@@ -1039,10 +1031,6 @@ Item {
     Component.onCompleted: {
         task.lastSeenCount = task.badgeCount;
         task._attentionBadgeCount = task.badgeCount;
-
-        if (!task.inPopup && !task.model.IsWindow) {
-            tasksRoot.taskInitComponent.createObject(task);
-        }
         task.completed = true;
 
         if (task.model && task.model.LauncherUrlWithoutIcon) {
