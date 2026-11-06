@@ -30,8 +30,8 @@
         "License": "GPL-3.0+",
         "Name": "Taskline",
         "Version": "1.0.0",
-        "Website": "https://github.com/divinae/Taskline",
-        "BugTrackerUrl": "https://github.com/divinae/Taskline/issues"
+        "Website": "https://github.com/divinae/taskline-plasmoid",
+        "BugTrackerUrl": "https://github.com/divinae/taskline-plasmoid/issues"
     },
     "X-Plasma-Provides": [
         "org.kde.plasma.multitasking"

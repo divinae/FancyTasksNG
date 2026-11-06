@@ -1,6 +1,6 @@
 # Taskline for Plasma 6
 
-[![CI](https://github.com/divinae/Taskline/actions/workflows/ci.yml/badge.svg)](https://github.com/divinae/Taskline/actions/workflows/ci.yml)
+[![CI](https://github.com/divinae/taskline-plasmoid/actions/workflows/ci.yml/badge.svg)](https://github.com/divinae/taskline-plasmoid/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](#license)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/divinae4535)
 
@@ -95,7 +95,7 @@ set in the settings. Drop files on a task to open them with that app.
 ## Install
 
 ```sh
-git clone https://github.com/divinae/Taskline.git
+git clone https://github.com/divinae/taskline-plasmoid.git
 cd Taskline
 make install
 ```
@@ -125,7 +125,7 @@ for bug reports (`taskline-diag.txt`). The changes since the fork are in the
 
 ## Bugs and ideas
 
-Report them in [GitHub Issues](https://github.com/divinae/Taskline/issues): your distribution, the
+Report them in [GitHub Issues](https://github.com/divinae/taskline-plasmoid/issues): your distribution, the
 Plasma version, Taskline's version, and for a problem the diagnostics report:
 
 ```sh
