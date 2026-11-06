@@ -415,7 +415,8 @@ Item {
             }
         }
         PauseAnimation {
-            duration: task.config.smokeExplosionOnClose ? 250 : 0
+            // The close animation only plays in icons-only mode, so only wait for it there
+            duration: (task.tasksRoot.iconsOnly && task.config.smokeExplosionOnClose) ? 250 : 0
         }
         ParallelAnimation {
             NumberAnimation {

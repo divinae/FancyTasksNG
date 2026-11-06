@@ -483,8 +483,13 @@ PlasmoidItem {
 
     function sortModeEnumValue(index) {
         switch (Number(index)) {
+        // "Do not sort" runs on SortManual too: under SortDisabled, TasksModel orders
+        // launchers by their row in TaskGroupingProxyModel, which re-appends a launcher at
+        // its end when it is shown again after its window closes, so a pinned app jumped
+        // to the end of the pinned group. SortManual uses the stable launcher-list order.
+        // (Ported from upstream 5307a8c.)
         case 0:
-            return TaskManager.TasksModel.SortDisabled;
+            return TaskManager.TasksModel.SortManual;
         case 1:
             return TaskManager.TasksModel.SortManual;
         case 2:
