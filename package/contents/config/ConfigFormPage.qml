@@ -6,7 +6,6 @@
 
 import QtQuick
 import QtQuick.Layouts
-import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 
 // Shared scaffold for a settings page that's just a Live Preview above a
@@ -36,13 +35,14 @@ ColumnLayout {
     }
 
     ConfigScrollView {
+        id: formScroll
         cfg_page: formPage.cfg_page
 
         // Cards (FormCard.FormHeader + FormCard.FormCard) stacked like a SimpleKCM page,
         // matching the look of other Kirigami Addons based settings
         ColumnLayout {
             id: pageFormLayout
-            width: parent.width
+            width: formScroll.availableWidth
             spacing: 0
         }
     }

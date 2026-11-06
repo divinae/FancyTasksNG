@@ -22,6 +22,9 @@ Item {
     clip: true
 
     default property alias innerContent: scrollView.contentData
+    // Width of the visible area left of the scroll bar: content binds its width to
+    // this, since a ScrollView child's parent is only as wide as the content itself
+    readonly property alias availableWidth: scrollView.availableWidth
 
     property int scrollDir: 0
     property real _lastY: 0
@@ -57,6 +60,7 @@ Item {
     ScrollView {
         id: scrollView
         anchors.fill: parent
+        contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     }
 
