@@ -10,6 +10,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 import org.kde.kirigami as Kirigami
+import org.kde.kirigamiaddons.formcard as FormCard
 
 import org.kde.plasma.plasma5support as P5Support
 
@@ -34,7 +35,7 @@ ConfigPage {
     // ---------------------------------------
     QtObject {
         id: appListStyle
-        property int iconSize: cfg_page.iconSizeSmallMedium
+        property int iconSize: Kirigami.Units.iconSizes.medium
         property int spacing: cfg_page.smallSpacing
         property int padding: cfg_page.smallSpacing
     }
@@ -475,28 +476,53 @@ ConfigPage {
     Component {
         id: mainPage
         Item {
-            // Main page container
-            
+            // Main page container: FormCard sections. The pinned list card
+            // grows with its rows and scrolls on its own once it runs out of
+            // room, so drag-reorder and its autoscroll keep working inside it.
+
             ColumnLayout {
                 anchors.fill: parent
-                spacing: cfg_page.largeSpacing
+                spacing: 0
 
-                Kirigami.InlineMessage {
-                    Layout.fillWidth: true
-                    type: Kirigami.MessageType.Information
-                    text: Wrappers.i18n("Add applications to pin to the taskbar. Drag items to reorder them.")
-                    visible: true
+                FormCard.FormHeader {
+                    title: Wrappers.i18n("Pinned applications")
                 }
 
-                ConfigScrollView {
-                    cfg_page: cfg_page
-                    Layout.fillWidth: true
+                FormCard.FormCard {
+                    id: pinnedCard
                     Layout.fillHeight: true
+                    Layout.maximumHeight: implicitHeight
+                    Layout.minimumHeight: Math.min(implicitHeight, cfg_page.gridUnit * 8)
+
+                    FormCard.FormTextDelegate {
+                        visible: pinnedAppsModel.count === 0
+                        text: Wrappers.i18n("No pinned applications")
+                        description: Wrappers.i18n("Add applications to pin to the taskbar.")
+                    }
 
                     ListView {
                         id: pinnedAppsList
                         model: pinnedAppsModel
-                        
+                        visible: pinnedAppsModel.count > 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        // Height of the list at rest. Frozen while a row is lifted
+                        // out (its slot collapses to 0), so the card doesn't
+                        // shrink under the cursor mid-drag.
+                        property real restingHeight: 0
+                        implicitHeight: restingHeight
+                        Component.onCompleted: restingHeight = contentHeight
+                        onContentHeightChanged: {
+                            if (cfg_page.dragItemIndex === -1) {
+                                restingHeight = contentHeight;
+                            }
+                        }
+
+                        ScrollBar.vertical: ScrollBar {}
+
                         // Disable animations during drag
                         interactive: !cfg_page.isDragging
 
@@ -569,57 +595,35 @@ ConfigPage {
                         cardStyle: appListStyle
                         pinnedModel: pinnedAppsModel
                     }
-                }
-                }
-                
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: cfg_page.smallSpacing
-
-                    CheckBox {
-                        id: cfg_unpinByDrag
-                        text: Wrappers.i18n("Unpin app by dragging its icon off the panel")
-                        checked: cfg_page.cfg_unpinByDrag
-                        onToggled: cfg_page.cfg_unpinByDrag = checked
                     }
 
-                    RowLayout {
-                        visible: cfg_unpinByDrag.checked && cfg_page.cfg_iconOnly === 1
-                        Item { implicitWidth: cfg_page.gridUnit }
-                        CheckBox {
-                            id: cfg_unpinByDragExplosion
-                            text: Wrappers.i18n("Play removal animation")
-                            checked: cfg_page.cfg_unpinByDragExplosion
-                            onToggled: cfg_page.cfg_unpinByDragExplosion = checked
-                        }
-                    }
-                }
+                    FormCard.FormDelegateSeparator {}
 
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    Button {
+                    FormCard.FormButtonDelegate {
                         id: addAppButton
                         icon.name: "list-add"
                         text: Wrappers.i18n("Add Application...")
                         onClicked: {
                             // Force refresh to ensure unpinned apps appear
                             cfg_page.filterAppsModel(cfg_page.currentSearchText, true);
-                            
+
                             stackView.push(addAppsPage)
                             if (!cfg_page.initialLoadDone) {
                                 cfg_page.initialLoadDone = true;
                                 initialLoadTimer.start();
                             }
                         }
-                        Layout.fillWidth: true
                     }
 
-                    Button {
+                    FormCard.FormDelegateSeparator {}
+
+                    FormCard.FormButtonDelegate {
                         id: addSpecialButton
                         icon.name: "preferences-desktop-default-applications"
                         text: Wrappers.i18n("Add Special Launcher...")
-                        onClicked: specialLauncherMenu.popup()
+                        description: Wrappers.i18n("Default web browser, file manager or mail client")
+                        trailingLogo.direction: Qt.DownArrow
+                        onClicked: specialLauncherMenu.popup(addSpecialButton, 0, addSpecialButton.height)
 
                         Menu {
                             id: specialLauncherMenu
@@ -650,6 +654,42 @@ ConfigPage {
                         }
                     }
                 }
+
+                FormCard.FormSectionText {
+                    text: Wrappers.i18n("Drag items to reorder them.")
+                }
+
+                FormCard.FormHeader {
+                    title: Wrappers.i18n("Unpinning")
+                }
+
+                FormCard.FormCard {
+                    FormCard.FormSwitchDelegate {
+                        id: cfg_unpinByDrag
+                        text: Wrappers.i18n("Unpin app by dragging its icon off the panel")
+                        checked: cfg_page.cfg_unpinByDrag
+                        onToggled: cfg_page.cfg_unpinByDrag = checked
+                    }
+
+                    FormCard.FormDelegateSeparator {
+                        visible: cfg_unpinByDragExplosion.visible
+                    }
+
+                    FormCard.FormSwitchDelegate {
+                        id: cfg_unpinByDragExplosion
+                        visible: cfg_unpinByDrag.checked && cfg_page.cfg_iconOnly === 1
+                        text: Wrappers.i18n("Play removal animation")
+                        checked: cfg_page.cfg_unpinByDragExplosion
+                        onToggled: cfg_page.cfg_unpinByDragExplosion = checked
+                    }
+                }
+
+                // Takes the slack when the pinned list is short, keeping the
+                // sections packed at the top like a FormCard page
+                Item {
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: cfg_page.largeSpacing
+                }
             }
         }
     }
@@ -659,12 +699,10 @@ ConfigPage {
         Item {
             // Add apps page container
             focus: true // Ensure item can receive focus for keys
-            
+
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 0
-
-
 
                 // Header
                 RowLayout {
@@ -676,41 +714,30 @@ ConfigPage {
                         text: Wrappers.i18n("Back")
                         onClicked: stackView.pop()
                     }
-                    
-                    Label {
+
+                    Kirigami.Heading {
                         text: Wrappers.i18n("Add Application")
-                        font.bold: true
-                        font.pointSize: cfg_page.themeDefaultFont.pointSize * 1.2
+                        level: 3
                         Layout.alignment: Qt.AlignVCenter
-                        color: cfg_page.themeTextColor
                     }
 
                     Item { Layout.fillWidth: true }
                 }
-                
+
                 // Search Field
-                TextField {
+                Kirigami.SearchField {
                     id: searchField
                     Layout.fillWidth: true
+                    Layout.maximumWidth: cfg_page.gridUnit * 30
+                    Layout.alignment: Qt.AlignHCenter
                     Layout.margins: cfg_page.smallSpacing
                     placeholderText: Wrappers.i18n("Search applications...")
                     text: cfg_page.currentSearchText
+                    // Filtering is debounced by searchTimer below
+                    autoAccept: false
                     onTextChanged: {
                         cfg_page.currentSearchText = text
                         searchTimer.restart()
-                    }
-                    leftPadding: searchIcon.width + cfg_page.smallSpacing * 2
-                    
-                    Kirigami.Icon {
-                        id: searchIcon
-                        source: "search"
-                        width: cfg_page.iconSizeSmallMedium
-                        height: width
-                        anchors.left: parent.left
-                        anchors.leftMargin: cfg_page.smallSpacing
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: cfg_page.themeTextColor
-                        opacity: 0.7
                     }
                 }
 
@@ -720,14 +747,24 @@ ConfigPage {
                     onTriggered: cfg_page.filterAppsModel(cfg_page.currentSearchText)
                 }
 
-                ScrollView {
-                    Layout.fillWidth: true
+                FormCard.FormHeader {
+                    title: Wrappers.i18n("Applications")
+                    visible: filteredAppsModel.count > 0
+                }
+
+                FormCard.FormCard {
+                    visible: filteredAppsModel.count > 0
                     Layout.fillHeight: true
 
                     ListView {
                         id: appsListView
                         model: filteredAppsModel
                         clip: true
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        ScrollBar.vertical: ScrollBar {}
 
                         onContentYChanged: {
                             if (contentY + height >= contentHeight - 100) {
@@ -735,61 +772,43 @@ ConfigPage {
                             }
                         }
 
-                        delegate: ItemDelegate {
+                        delegate: ColumnLayout {
                             id: appsDelegate
                             required property var model
                             required property int index
-                            
+
                             width: ListView.view.width
-                            topPadding: appListStyle.padding
-                            bottomPadding: appListStyle.padding
-                            leftPadding: appListStyle.padding
-                            rightPadding: appListStyle.padding
-                            
-                            onClicked: {
-                                cfg_page.addLauncher(appsDelegate.model.url);
-                                // Don't close the page, just remove from the list
-                                // stackView.pop(); 
-                                
-                                // Remove item from filtered model immediately
-                                filteredAppsModel.remove(index);
+                            spacing: 0
+
+                            Kirigami.Separator {
+                                visible: appsDelegate.index > 0
+                                opacity: 0.5
+                                Layout.fillWidth: true
+                                Layout.leftMargin: Kirigami.Units.largeSpacing
+                                Layout.rightMargin: Kirigami.Units.largeSpacing
                             }
 
-                            ToolTip.text: appsDelegate.model.comment || appsDelegate.model.name || ""
-                            ToolTip.visible: appsDelegate.hovered && ToolTip.text !== ""
-                            ToolTip.delay: 1000
+                            FormCard.FormButtonDelegate {
+                                id: appButton
+                                icon.name: appsDelegate.model.icon || "application-x-executable"
+                                icon.width: appListStyle.iconSize
+                                icon.height: appListStyle.iconSize
+                                text: appsDelegate.model.name || appsDelegate.model.url
+                                description: appsDelegate.model.genericName || ""
+                                trailingLogo.visible: false
 
-                            contentItem: RowLayout {
-                                spacing: cfg_page.smallSpacing
+                                onClicked: {
+                                    cfg_page.addLauncher(appsDelegate.model.url);
+                                    // Don't close the page, just remove from the list
+                                    // stackView.pop();
 
-                                Kirigami.Icon {
-                                    source: appsDelegate.model.icon || "application-x-executable"
-                                    Layout.preferredWidth: appListStyle.iconSize
-                                    Layout.preferredHeight: appListStyle.iconSize
+                                    // Remove item from filtered model immediately
+                                    filteredAppsModel.remove(appsDelegate.index);
                                 }
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    spacing: 0
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: appsDelegate.model.name || appsDelegate.model.url
-                                        wrapMode: Text.Wrap
-                                        color: cfg_page.themeTextColor
-                                    }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        visible: text !== ""
-                                        text: appsDelegate.model.genericName || ""
-                                        elide: Text.ElideRight
-                                        font.pointSize: cfg_page.themeSmallFont.pointSize
-                                        opacity: 0.7
-                                        color: cfg_page.themeTextColor
-                                    }
-                                }
+                                ToolTip.text: appsDelegate.model.comment || appsDelegate.model.name || ""
+                                ToolTip.visible: appButton.hovered && ToolTip.text !== ""
+                                ToolTip.delay: 1000
                             }
                         }
                     }
@@ -805,6 +824,17 @@ ConfigPage {
                         anchors.centerIn: parent
                         running: cfg_page.isLoadingApps
                     }
+                }
+
+                // Keeps the header and search field at the top when the list
+                // is empty and nothing is loading
+                Item {
+                    visible: !cfg_page.isLoadingApps && filteredAppsModel.count === 0
+                    Layout.fillHeight: true
+                }
+
+                Item {
+                    Layout.preferredHeight: cfg_page.largeSpacing
                 }
             }
         }

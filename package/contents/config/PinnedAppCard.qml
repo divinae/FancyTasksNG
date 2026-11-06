@@ -15,8 +15,9 @@ import org.kde.kirigami as Kirigami
 import "../ui/code/singletones"
 
 // A single row in ConfigPinnedApps.qml's pinned-launchers ListView: icon,
-// name, drag-to-reorder, and remove button. Extracted out of the page file
-// since it was the single largest, most self-contained chunk of it.
+// name, drag-to-reorder, and remove button. Styled like a Kirigami Addons
+// FormCard delegate (padding, hover feedback, inset separators) since it sits
+// inside a FormCard.FormCard on the page.
 Item {
     id: pinnedAppDelegate
 
@@ -31,7 +32,13 @@ Item {
     height: beingDragged ? 0 : dragContent.implicitHeight
     clip: true
 
-    property bool beingDragged: index === pinnedAppDelegate.pageRoot.dragItemIndex
+    // index is -1 while a delegate is being torn down after a model reset;
+    // don't mistake that for the dragged row (it would get reparented).
+    property bool beingDragged: index !== -1 && index === pinnedAppDelegate.pageRoot.dragItemIndex
+
+    // FormCard delegate paddings (FormCardUnits is private to Kirigami Addons)
+    readonly property int horizontalPadding: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
+    readonly property int verticalPadding: Kirigami.Units.largeSpacing
 
     // Drop insertion indicator (arrows + line), shown above/below a row
     // while dragging.
@@ -112,10 +119,28 @@ Item {
         sourceComponent: dropIndicatorComponent
     }
 
+    // Row separator, FormCard style: thin and inset, drawn above every row
+    // but the first. Hidden while the row is lifted out by a drag.
+    Kirigami.Separator {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: Kirigami.Units.largeSpacing
+        anchors.rightMargin: Kirigami.Units.largeSpacing
+        visible: pinnedAppDelegate.index > 0 && !pinnedAppDelegate.beingDragged
+        opacity: 0.5
+        z: 1
+    }
+
     Item {
         id: dragContent
         width: pinnedAppDelegate.width
-        implicitHeight: contentRow.implicitHeight + pinnedAppDelegate.cardStyle.padding * 2
+        implicitHeight: contentRow.implicitHeight + pinnedAppDelegate.verticalPadding * 2
+
+        // Same colour set as the FormCard the row sits in, so the lifted row
+        // keeps the card look after it is reparented to the page.
+        Kirigami.Theme.colorSet: Kirigami.Theme.View
+        Kirigami.Theme.inherit: false
 
         Drag.active: dragMouseArea.drag.active
         Drag.source: pinnedAppDelegate
@@ -131,7 +156,7 @@ Item {
                 }
                 PropertyChanges {
                     dragContent.z: 100
-                    dragContent.opacity: 0.8
+                    dragContent.opacity: 0.9
                 }
             }
         ]
@@ -141,22 +166,36 @@ Item {
         }
 
         ToolTip.text: pinnedAppDelegate.model.comment || pinnedAppDelegate.model.name || ""
-        ToolTip.visible: rowHoverHandler.hovered && !removeMouseArea.containsMouse && !pinnedAppDelegate.pageRoot.isDragging && ToolTip.text !== ""
+        ToolTip.visible: rowHoverHandler.hovered && !removeButton.hovered && !pinnedAppDelegate.pageRoot.isDragging && ToolTip.text !== ""
         ToolTip.delay: 1000
 
+        // Card surface, only while the row is lifted out of the card by a drag
         Rectangle {
             anchors.fill: parent
-            color: rowHoverHandler.hovered ? pinnedAppDelegate.pageRoot.themeHoverColor : "transparent"
-            opacity: 0.3
-            radius: 3
-            visible: !pinnedAppDelegate.pageRoot.isDragging
+            visible: pinnedAppDelegate.beingDragged
+            color: Kirigami.Theme.backgroundColor
+            radius: Kirigami.Units.cornerRadius
+            border.width: 1
+            border.color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, 0.15)
+        }
+
+        // Hover / press feedback, same as FormCard's FormDelegateBackground
+        Rectangle {
+            anchors.fill: parent
+            color: Kirigami.Theme.textColor
+            opacity: dragMouseArea.pressed ? 0.2
+                : (rowHoverHandler.hovered && !pinnedAppDelegate.pageRoot.isDragging && !Kirigami.Settings.tabletMode) ? 0.07
+                : 0
+            Behavior on opacity {
+                NumberAnimation { duration: Kirigami.Units.shortDuration }
+            }
         }
 
         MouseArea {
             id: dragMouseArea
             anchors.fill: parent
             z: -1
-            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
 
             drag.target: dragContent
             drag.axis: Drag.YAxis
@@ -190,8 +229,19 @@ Item {
         RowLayout {
             id: contentRow
             anchors.fill: parent
-            anchors.margins: pinnedAppDelegate.cardStyle.padding
-            spacing: pinnedAppDelegate.cardStyle.spacing
+            anchors.leftMargin: pinnedAppDelegate.horizontalPadding
+            anchors.rightMargin: pinnedAppDelegate.horizontalPadding
+            anchors.topMargin: pinnedAppDelegate.verticalPadding
+            anchors.bottomMargin: pinnedAppDelegate.verticalPadding
+            spacing: Kirigami.Units.largeSpacing
+
+            // Visual cue only; the whole row is the drag area
+            Kirigami.Icon {
+                source: "handle-sort"
+                Layout.preferredWidth: Kirigami.Units.iconSizes.small
+                Layout.preferredHeight: Kirigami.Units.iconSizes.small
+                opacity: 0.6
+            }
 
             Kirigami.Icon {
                 source: pinnedAppDelegate.model.icon
@@ -202,7 +252,7 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
-                spacing: 0
+                spacing: Kirigami.Units.smallSpacing
 
                 Label {
                     Layout.fillWidth: true
@@ -215,42 +265,27 @@ Item {
                     visible: text !== ""
                     text: pinnedAppDelegate.model.genericName || ""
                     elide: Text.ElideRight
-                    font.pointSize: pinnedAppDelegate.pageRoot.themeSmallFont.pointSize
-                    opacity: 0.7
+                    color: Kirigami.Theme.disabledTextColor
+                    font: Kirigami.Theme.smallFont
                 }
             }
 
-            Item {
-                id: removeButtonContainer
-                Layout.preferredWidth: pinnedAppDelegate.cardStyle.iconSize
-                Layout.preferredHeight: pinnedAppDelegate.cardStyle.iconSize
+            ToolButton {
+                id: removeButton
                 visible: !pinnedAppDelegate.beingDragged
+                icon.name: "list-remove"
+                text: Wrappers.i18n("Remove")
+                display: AbstractButton.IconOnly
 
-                Kirigami.Icon {
-                    anchors.centerIn: parent
-                    width: pinnedAppDelegate.pageRoot.iconSizeSmall
-                    height: pinnedAppDelegate.pageRoot.iconSizeSmall
-                    source: "user-trash"
-                    isMask: true
-                    color: removeMouseArea.containsMouse ? pinnedAppDelegate.pageRoot.themeNegativeTextColor : pinnedAppDelegate.pageRoot.themeTextColor
+                onClicked: {
+                    let currentLaunchers = Array.from(pinnedAppDelegate.pageRoot.pinnedLaunchers);
+                    currentLaunchers.splice(pinnedAppDelegate.index, 1);
+                    pinnedAppDelegate.pageRoot.cfg_launchers = currentLaunchers;
+                    pinnedAppDelegate.pageRoot.refreshPinnedAppsModel();
                 }
 
-                MouseArea {
-                    id: removeMouseArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-
-                    onClicked: {
-                        let currentLaunchers = Array.from(pinnedAppDelegate.pageRoot.pinnedLaunchers);
-                        currentLaunchers.splice(pinnedAppDelegate.index, 1);
-                        pinnedAppDelegate.pageRoot.cfg_launchers = currentLaunchers;
-                        pinnedAppDelegate.pageRoot.refreshPinnedAppsModel();
-                    }
-                }
-
-                ToolTip.text: Wrappers.i18n("Remove")
-                ToolTip.visible: removeMouseArea.containsMouse
+                ToolTip.text: text
+                ToolTip.visible: hovered
                 ToolTip.delay: 1000
             }
         }

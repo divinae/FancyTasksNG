@@ -5,12 +5,11 @@
 */
 
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.platform as Labs
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
-import org.kde.kquickcontrols as KQuickAddons
+import org.kde.kirigamiaddons.formcard as FormCard
 
 import "../ui/code/singletones"
 
@@ -21,147 +20,156 @@ ConfigPage {
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.largeSpacing
             visible: DesktopActionsManager.helperError !== ""
             type: Kirigami.MessageType.Warning
             text: Wrappers.i18n("The Taskline helper could not start, so jump lists, recent documents and configuration export/import are unavailable. It needs python3 with the dbus-python and PyGObject modules. Error: %1", DesktopActionsManager.helperError)
         }
 
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Floating Mode Settings")
+        }
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.largeSpacing
             visible: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
             type: Kirigami.MessageType.Information
             text: Wrappers.i18n("This option is disabled when the widget is on a panel.")
         }
-    
-        Label {
-            text: Wrappers.i18n("Floating Mode Settings:")
-            opacity: advancedPage.plasmoidLocation === PlasmaCore.Types.Floating ? 1.0 : 0.6
-        }
-    
-        CheckBox {
-            id: overridePlasmaButtonDirection
-            text: Wrappers.i18n("Override system direction")
-            enabled: advancedPage.plasmoidLocation === PlasmaCore.Types.Floating
-            checked: advancedPage.cfg_overridePlasmaButtonDirection
-            onToggled: advancedPage.cfg_overridePlasmaButtonDirection = checked
-        }
-    
-        ComboBox {
-            id: plasmaButtonDirection
-            Layout.fillWidth: true
-            enabled: overridePlasmaButtonDirection.enabled && overridePlasmaButtonDirection.checked
-            visible: overridePlasmaButtonDirection.checked
-            model: [
-                Wrappers.i18n("As on top panel"),
-                Wrappers.i18n("As on bottom panel"),
-                Wrappers.i18n("As on left panel"),
-                Wrappers.i18n("As on right panel")
-            ]
-            currentIndex: advancedPage.cfg_plasmaButtonDirection
-            onActivated: (index) => advancedPage.cfg_plasmaButtonDirection = index
-        }
-    
-        Item { height: advancedPage.largeSpacing }
-    
-        Label {
-            text: Wrappers.i18n("When a window wants attention:")
+
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                id: overridePlasmaButtonDirection
+                text: Wrappers.i18n("Override system direction")
+                enabled: advancedPage.plasmoidLocation === PlasmaCore.Types.Floating
+                checked: advancedPage.cfg_overridePlasmaButtonDirection
+                onToggled: advancedPage.cfg_overridePlasmaButtonDirection = checked
+            }
+
+            FormCard.FormDelegateSeparator {
+                visible: plasmaButtonDirection.visible
+            }
+
+            FormCard.FormComboBoxDelegate {
+                id: plasmaButtonDirection
+                text: Wrappers.i18n("Direction")
+                enabled: overridePlasmaButtonDirection.enabled && overridePlasmaButtonDirection.checked
+                visible: overridePlasmaButtonDirection.checked
+                model: [
+                    Wrappers.i18n("As on top panel"),
+                    Wrappers.i18n("As on bottom panel"),
+                    Wrappers.i18n("As on left panel"),
+                    Wrappers.i18n("As on right panel")
+                ]
+                currentIndex: advancedPage.cfg_plasmaButtonDirection
+                onActivated: (index) => advancedPage.cfg_plasmaButtonDirection = index
+            }
         }
 
-        CheckBox {
-            id: cfg_unhideOnAttention
-            text: Wrappers.i18n("Unhide panel when a window wants attention")
-            enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
-            checked: advancedPage.cfg_unhideOnAttention
-            onToggled: advancedPage.cfg_unhideOnAttention = checked
+        FormCard.FormHeader {
+            title: Wrappers.i18n("When a window wants attention")
         }
 
-        CheckBox {
-            text: Wrappers.i18n("Instead, peek the app's icon out of the screen edge (for auto-hidden panels)")
-            Layout.leftMargin: advancedPage.gridUnit
-            enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
-            checked: advancedPage.cfg_attentionPeek
-            onToggled: advancedPage.cfg_attentionPeek = checked
-        }
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                id: cfg_unhideOnAttention
+                text: Wrappers.i18n("Unhide panel when a window wants attention")
+                enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
+                checked: advancedPage.cfg_unhideOnAttention
+                onToggled: advancedPage.cfg_unhideOnAttention = checked
+            }
 
-        CheckBox {
-            id: cfg_animateAttentionStatus
-            text: Wrappers.i18n("Animate task icon when a window wants attention")
-            checked: advancedPage.cfg_animateAttentionStatus
-            onToggled: advancedPage.cfg_animateAttentionStatus = checked
-            visible: advancedPage.cfg_iconOnly === 1
-        }
+            FormCard.FormDelegateSeparator {}
 
-        CheckBox {
-            text: Wrappers.i18n("Bounce the icon while an application is starting")
-            checked: advancedPage.cfg_bounceOnLaunch
-            onToggled: advancedPage.cfg_bounceOnLaunch = checked
-        }
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Instead, peek the app's icon out of the screen edge (for auto-hidden panels)")
+                leftPadding: Kirigami.Units.gridUnit * 2
+                enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating
+                checked: advancedPage.cfg_attentionPeek
+                onToggled: advancedPage.cfg_attentionPeek = checked
+            }
 
-        RowLayout {
-            spacing: advancedPage.smallSpacing
+            FormCard.FormDelegateSeparator {
+                visible: cfg_animateAttentionStatus.visible
+            }
 
-            CheckBox {
+            FormCard.FormSwitchDelegate {
+                id: cfg_animateAttentionStatus
+                text: Wrappers.i18n("Animate task icon when a window wants attention")
+                checked: advancedPage.cfg_animateAttentionStatus
+                onToggled: advancedPage.cfg_animateAttentionStatus = checked
+                visible: advancedPage.cfg_iconOnly === 1
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Bounce the icon while an application is starting")
+                checked: advancedPage.cfg_bounceOnLaunch
+                onToggled: advancedPage.cfg_bounceOnLaunch = checked
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
                 id: cfg_attentionCustomColorEnabled
                 text: Wrappers.i18n("Colorize the task button when a window wants attention")
                 checked: advancedPage.cfg_attentionCustomColorEnabled
                 onToggled: advancedPage.cfg_attentionCustomColorEnabled = checked
             }
 
-            KQuickAddons.ColorButton {
+            FormCard.FormDelegateSeparator {
+                visible: attentionCustomColorBtn.visible
+            }
+
+            FormColorDelegate {
                 id: attentionCustomColorBtn
                 visible: advancedPage.cfg_attentionCustomColorEnabled
+                label: Wrappers.i18n("Attention color")
                 showAlphaChannel: true
-                Layout.maximumHeight: cfg_attentionCustomColorEnabled.height
                 color: advancedPage.cfg_attentionCustomColor
-                onColorChanged: {
-                    if (!Qt.colorEqual(color, advancedPage.cfg_attentionCustomColor)) {
-                        advancedPage.cfg_attentionCustomColor = color
-                    }
-                }
+                onColorPicked: c => advancedPage.cfg_attentionCustomColor = c
             }
         }
 
-        Item { height: advancedPage.largeSpacing }
-    
-        Label {
-            text: Wrappers.i18n("Layout settings:")
-            opacity: fillEnabled ? 1.0 : 0.6
-    
-            readonly property bool fillEnabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating && advancedPage.cfg_iconOnly
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Layout settings")
         }
-    
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.largeSpacing
             visible: advancedPage.plasmoidLocation === PlasmaCore.Types.Floating
             type: Kirigami.MessageType.Information
             text: Wrappers.i18n("These options are only available when the widget is on a panel.")
         }
-    
+
         Kirigami.InlineMessage {
             Layout.fillWidth: true
+            Layout.margins: Kirigami.Units.largeSpacing
             visible: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating && !advancedPage.cfg_iconOnly
             type: Kirigami.MessageType.Information
             text: Wrappers.i18n("These options are only available in icon-only mode.")
         }
-    
-        CheckBox {
-            id: fill
-            text: Wrappers.i18n("Fill free space on panel")
-            enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating && advancedPage.cfg_iconOnly
-            checked: advancedPage.cfg_fill
-            onToggled: advancedPage.cfg_fill = checked
-        }
-    
-        RowLayout {
-            visible: fill.checked && fill.enabled
-            Item { implicitWidth: advancedPage.gridUnit }
-    
-            Label {
-                text: Wrappers.i18n("Alignment:")
+
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                id: fill
+                text: Wrappers.i18n("Fill free space on panel")
+                enabled: advancedPage.plasmoidLocation !== PlasmaCore.Types.Floating && advancedPage.cfg_iconOnly
+                checked: advancedPage.cfg_fill
+                onToggled: advancedPage.cfg_fill = checked
             }
-            ComboBox {
+
+            FormCard.FormDelegateSeparator {
+                visible: fillAlignment.visible
+            }
+
+            FormCard.FormComboBoxDelegate {
                 id: fillAlignment
-                Layout.fillWidth: true
+                visible: fill.checked && fill.enabled
+                text: Wrappers.i18n("Alignment")
                 model: [
                     Wrappers.i18n("Edge"),
                     Wrappers.i18n("Center")
@@ -170,105 +178,85 @@ ConfigPage {
                 onActivated: (index) => advancedPage.cfg_fillAlignment = index
             }
         }
-    
-        Item { height: advancedPage.largeSpacing }
-    
-        Label {
-            text: Wrappers.i18n("Context menu:")
+
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Context menu")
         }
-    
-        CheckBox {
-            id: cfg_hideMoveToDesktopMenuWithOneDesktop
-            text: Wrappers.i18n("Hide 'Move to Desktop' if only one virtual desktop is used")
-            checked: advancedPage.cfg_hideMoveToDesktopMenuWithOneDesktop
-            onToggled: advancedPage.cfg_hideMoveToDesktopMenuWithOneDesktop = checked
-    
-            Layout.fillWidth: true
-    
-            contentItem: Text {
-                text: cfg_hideMoveToDesktopMenuWithOneDesktop.text
-                font: cfg_hideMoveToDesktopMenuWithOneDesktop.font
-                color: advancedPage.themeTextColor
-                wrapMode: Text.WordWrap
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: cfg_hideMoveToDesktopMenuWithOneDesktop.indicator.width + cfg_hideMoveToDesktopMenuWithOneDesktop.spacing
+
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                id: cfg_hideMoveToDesktopMenuWithOneDesktop
+                text: Wrappers.i18n("Hide 'Move to Desktop' if only one virtual desktop is used")
+                checked: advancedPage.cfg_hideMoveToDesktopMenuWithOneDesktop
+                onToggled: advancedPage.cfg_hideMoveToDesktopMenuWithOneDesktop = checked
             }
-        }
-    
-        CheckBox {
-            id: cfg_showBrowserHistory
-            text: Wrappers.i18n("Show browsing history in the context menu of web browsers (Experimental)")
-            checked: advancedPage.cfg_showBrowserHistory
-            onToggled: advancedPage.cfg_showBrowserHistory = checked
-    
-            Layout.fillWidth: true
-    
-            contentItem: Text {
-                text: cfg_showBrowserHistory.text
-                font: cfg_showBrowserHistory.font
-                color: advancedPage.themeTextColor
-                wrapMode: Text.WordWrap
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: cfg_showBrowserHistory.indicator.width + cfg_showBrowserHistory.spacing
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                id: cfg_showBrowserHistory
+                text: Wrappers.i18n("Show browsing history in the context menu of web browsers (Experimental)")
+                checked: advancedPage.cfg_showBrowserHistory
+                onToggled: advancedPage.cfg_showBrowserHistory = checked
             }
-        }
-    
-        RowLayout {
-            visible: cfg_showBrowserHistory.checked
-            Item { implicitWidth: advancedPage.gridUnit }
-            Label {
-                text: Wrappers.i18n("Number of browser history items:")
+
+            FormCard.FormDelegateSeparator {
+                visible: cfg_browserHistoryLimit.visible
             }
-            SpinBox {
+
+            FormCard.FormSpinBoxDelegate {
                 id: cfg_browserHistoryLimit
+                visible: cfg_showBrowserHistory.checked
+                label: Wrappers.i18n("Number of browser history items")
                 from: 1
                 to: 50
                 value: advancedPage.cfg_browserHistoryLimit
+                // Only on user edits: on load the delegate may clamp before the binding settles
                 onValueModified: advancedPage.cfg_browserHistoryLimit = value
             }
         }
 
-        Item { height: advancedPage.largeSpacing }
-
-        Label {
-            text: Wrappers.i18n("Effects:")
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Effects")
         }
 
-        CheckBox {
-            id: cfg_cursorGlow
-            text: Wrappers.i18n("Glow following the cursor over task buttons")
-            checked: advancedPage.cfg_cursorGlow
-            onToggled: advancedPage.cfg_cursorGlow = checked
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                id: cfg_cursorGlow
+                text: Wrappers.i18n("Glow following the cursor over task buttons")
+                checked: advancedPage.cfg_cursorGlow
+                onToggled: advancedPage.cfg_cursorGlow = checked
+            }
         }
 
-        Item { height: advancedPage.largeSpacing }
-
-        Label {
-            text: Wrappers.i18n("Configuration:")
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Configuration")
         }
 
-        RowLayout {
-            spacing: advancedPage.smallSpacing
-
-            Button {
+        FormCard.FormCard {
+            FormCard.FormButtonDelegate {
                 text: Wrappers.i18n("Export Configuration…")
+                description: Wrappers.i18n("Save all Taskline settings to a JSON file.")
                 icon.name: "document-export"
                 onClicked: exportFileDialog.open()
             }
 
-            Button {
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormButtonDelegate {
                 text: Wrappers.i18n("Import Configuration…")
+                description: Wrappers.i18n("Load settings from a JSON file; click Apply to keep them.")
                 icon.name: "document-import"
                 onClicked: importFileDialog.open()
             }
         }
 
-        Label {
+        Kirigami.InlineMessage {
             id: configIoStatusLabel
             Layout.fillWidth: true
-            wrapMode: Text.WordWrap
+            Layout.margins: Kirigami.Units.largeSpacing
             visible: text.length > 0
-            color: configIoIsError ? advancedPage.themeNegativeTextColor : advancedPage.themeTextColor
+            type: configIoIsError ? Kirigami.MessageType.Error : Kirigami.MessageType.Positive
 
             property bool configIoIsError: false
         }

@@ -10,7 +10,7 @@ import QtQuick.Layouts
 
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
-import org.kde.kquickcontrols as KQuickAddons
+import org.kde.kirigamiaddons.formcard as FormCard
 
 import "../ui/code/singletones"
 
@@ -22,39 +22,47 @@ ConfigPage {
 
     readonly property bool isLineStyle: indicatorsPage.cfg_indicatorStyle === 0
 
+    readonly property bool indicatorsOn: indicatorsPage.cfg_indicatorsEnabled
+    readonly property bool resizeOn: indicatorsPage.indicatorsOn && indicatorsPage.cfg_indicatorResize
+    readonly property bool progressOn: indicatorsPage.cfg_indicatorProgressStyle > 0
+
     ConfigFormPage {
         cfg_page: indicatorsPage
 
-        Label {
-            text: Wrappers.i18n("Active application indicators:")
+        // ---- Indicators ----------------------------------------------------
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Active application indicators")
         }
-    
-        CheckBox {
-            id: indicatorsEnabled
-            text: Wrappers.i18nc("State", "Enabled")
-            checked: indicatorsPage.cfg_indicatorsEnabled
-            onToggled: indicatorsPage.cfg_indicatorsEnabled = checked
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            id: indicatorsAnimated
-            text: Wrappers.i18n("Animate indicators")
-            checked: indicatorsPage.cfg_indicatorsAnimated
-            onToggled: indicatorsPage.cfg_indicatorsAnimated = checked
-        }
-    
-        Item { height: indicatorsPage.largeSpacing; visible: indicatorsEnabled.checked }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Style:")
+
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18nc("State", "Enabled")
+                description: Wrappers.i18n("Marks under the task buttons of running applications.")
+                checked: indicatorsPage.cfg_indicatorsEnabled
+                onToggled: indicatorsPage.cfg_indicatorsEnabled = checked
             }
-            ComboBox {
-                id: indicatorStyle
-                Layout.fillWidth: true
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.indicatorsOn }
+
+            FormCard.FormSwitchDelegate {
+                visible: indicatorsPage.indicatorsOn
+                text: Wrappers.i18n("Animate indicators")
+                checked: indicatorsPage.cfg_indicatorsAnimated
+                onToggled: indicatorsPage.cfg_indicatorsAnimated = checked
+            }
+        }
+
+        // ---- Style ---------------------------------------------------------
+        FormCard.FormHeader {
+            visible: indicatorsPage.indicatorsOn
+            title: Wrappers.i18n("Style")
+        }
+
+        FormCard.FormCard {
+            visible: indicatorsPage.indicatorsOn
+
+            FormCard.FormComboBoxDelegate {
+                text: Wrappers.i18n("Style")
                 model: [
                     Wrappers.i18n("Line"),
                     Wrappers.i18n("Dashes")
@@ -62,145 +70,155 @@ ConfigPage {
                 currentIndex: indicatorsPage.cfg_indicatorStyle
                 onActivated: (index) => indicatorsPage.cfg_indicatorStyle = index
             }
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            id: indicatorOverride
-            text: Wrappers.i18n("Override indicator location")
-            checked: indicatorsPage.cfg_indicatorOverride
-            onToggled: indicatorsPage.cfg_indicatorOverride = checked
-        }
-    
-        ComboBox {
-            visible: indicatorsEnabled.checked && indicatorOverride.checked
-            id: indicatorLocation
-            Layout.fillWidth: true
-            model: [
-                Wrappers.i18n("Bottom"),
-                Wrappers.i18n("Left"),
-                Wrappers.i18n("Right"),
-                Wrappers.i18n("Top")
-            ]
-            currentIndex: indicatorsPage.cfg_indicatorLocation
-            onActivated: (index) => indicatorsPage.cfg_indicatorLocation = index
-        }
-    
-        Item { height: indicatorsPage.smallSpacing; visible: indicatorsEnabled.checked }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Edge offset:")
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Override indicator location")
+                checked: indicatorsPage.cfg_indicatorOverride
+                onToggled: indicatorsPage.cfg_indicatorOverride = checked
             }
-            SpinBox {
-                id: indicatorEdgeOffset
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_indicatorOverride }
+
+            FormCard.FormComboBoxDelegate {
+                visible: indicatorsPage.cfg_indicatorOverride
+                text: Wrappers.i18n("Location")
+                model: [
+                    Wrappers.i18n("Bottom"),
+                    Wrappers.i18n("Left"),
+                    Wrappers.i18n("Right"),
+                    Wrappers.i18n("Top")
+                ]
+                currentIndex: indicatorsPage.cfg_indicatorLocation
+                onActivated: (index) => indicatorsPage.cfg_indicatorLocation = index
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSpinBoxDelegate {
+                label: Wrappers.i18n("Edge offset (px)")
                 from: 0
                 to: 999
                 value: indicatorsPage.cfg_indicatorEdgeOffset
                 onValueModified: indicatorsPage.cfg_indicatorEdgeOffset = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
         }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Thickness:")
-            }
-            SpinBox {
-                id: indicatorSize
+
+        // ---- Size ----------------------------------------------------------
+        FormCard.FormHeader {
+            visible: indicatorsPage.indicatorsOn
+            title: Wrappers.i18n("Size")
+        }
+
+        FormCard.FormCard {
+            visible: indicatorsPage.indicatorsOn
+
+            FormCard.FormSpinBoxDelegate {
+                label: Wrappers.i18n("Thickness (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorSize
                 onValueModified: indicatorsPage.cfg_indicatorSize = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-    
-            Item { implicitWidth: indicatorsPage.largeSpacing }
-    
-            Label {
-                text: Wrappers.i18n("Segment length:")
-            }
-            SpinBox {
-                id: indicatorLength
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSpinBoxDelegate {
+                label: Wrappers.i18n("Segment length (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorLength
                 onValueModified: indicatorsPage.cfg_indicatorLength = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSpinBoxDelegate {
+                label: Wrappers.i18n("Roundness (%)")
+                from: 0
+                to: 100
+                value: indicatorsPage.cfg_indicatorRadius
+                onValueModified: indicatorsPage.cfg_indicatorRadius = value
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.isLineStyle }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.isLineStyle
+                label: Wrappers.i18n("Side padding (px)")
+                from: 0
+                to: 999
+                value: indicatorsPage.cfg_indicatorShrink
+                onValueModified: indicatorsPage.cfg_indicatorShrink = value
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSpinBoxDelegate {
+                label: Wrappers.i18n("Max segments")
+                from: 1
+                to: 99
+                value: indicatorsPage.cfg_indicatorMaxLimit
+                onValueModified: indicatorsPage.cfg_indicatorMaxLimit = value
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Show '+' on overflow")
+                checked: indicatorsPage.cfg_indicatorShowPlus
+                onToggled: indicatorsPage.cfg_indicatorShowPlus = checked
             }
         }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            CheckBox {
-                id: indicatorResize
+
+        // ---- Activation and hover -------------------------------------------
+        FormCard.FormHeader {
+            visible: indicatorsPage.indicatorsOn
+            title: Wrappers.i18n("Activation and hover")
+        }
+
+        FormCard.FormCard {
+            visible: indicatorsPage.indicatorsOn
+
+            FormCard.FormSwitchDelegate {
                 text: Wrappers.i18n("Resize indicators on activation/hover")
                 checked: indicatorsPage.cfg_indicatorResize
                 onToggled: indicatorsPage.cfg_indicatorResize = checked
             }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorResize.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit }
-    
-            Label {
-                text: Wrappers.i18n("Thickness:")
-            }
-            SpinBox {
-                id: indicatorActiveSize
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.resizeOn
+                label: Wrappers.i18n("Active thickness (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorActiveSize
                 onValueModified: indicatorsPage.cfg_indicatorActiveSize = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-    
-            Item { implicitWidth: indicatorsPage.largeSpacing }
-    
-            Label {
-                text: Wrappers.i18n("Length:")
-            }
-            SpinBox {
-                id: indicatorActiveLength
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.resizeOn
+                label: Wrappers.i18n("Active length (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorActiveLength
                 onValueModified: indicatorsPage.cfg_indicatorActiveLength = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorResize.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit }
-            Label {
-                text: Wrappers.i18n("Segment alignment:")
-            }
-            ComboBox {
-                id: indicatorAlignment
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn }
+
+            FormCard.FormComboBoxDelegate {
+                visible: indicatorsPage.resizeOn
+                text: Wrappers.i18n("Segment alignment")
                 model: {
-                    let isVertical = indicatorsPage.cfg_indicatorOverride ? 
+                    let isVertical = indicatorsPage.cfg_indicatorOverride ?
                         (indicatorsPage.cfg_indicatorLocation === 1 || indicatorsPage.cfg_indicatorLocation === 2) :
                         (indicatorsPage.plasmoidLocation === PlasmaCore.Types.LeftEdge || indicatorsPage.plasmoidLocation === PlasmaCore.Types.RightEdge);
-    
+
                     return isVertical ? [
                         Wrappers.i18n("Align Left"),
                         Wrappers.i18n("Align Center"),
@@ -214,481 +232,371 @@ ConfigPage {
                 currentIndex: indicatorsPage.cfg_indicatorAlignment
                 onActivated: (index) => indicatorsPage.cfg_indicatorAlignment = index
             }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorResize.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit }
-            CheckBox {
-                id: indicatorHoverSeparate
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn }
+
+            FormCard.FormSwitchDelegate {
+                visible: indicatorsPage.resizeOn
                 text: Wrappers.i18n("Separate settings for hovered indicators")
                 checked: indicatorsPage.cfg_indicatorHoverSeparate
                 onToggled: indicatorsPage.cfg_indicatorHoverSeparate = checked
             }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorResize.checked && indicatorHoverSeparate.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit * 2 }
-    
-            Label {
-                text: Wrappers.i18n("Thickness:")
-            }
-            SpinBox {
-                id: indicatorHoverSize
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorHoverSeparate }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorHoverSeparate
+                label: Wrappers.i18n("Hovered thickness (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorHoverSize
                 onValueModified: indicatorsPage.cfg_indicatorHoverSize = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-    
-            Item { implicitWidth: indicatorsPage.largeSpacing }
-    
-            Label {
-                text: Wrappers.i18n("Length:")
-            }
-            SpinBox {
-                id: indicatorHoverLength
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorHoverSeparate }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorHoverSeparate
+                label: Wrappers.i18n("Hovered length (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorHoverLength
                 onValueModified: indicatorsPage.cfg_indicatorHoverLength = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorResize.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit }
-            CheckBox {
-                id: indicatorGroupSeparate
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn }
+
+            FormCard.FormSwitchDelegate {
+                visible: indicatorsPage.resizeOn
                 text: Wrappers.i18n("Separate settings for group indicators")
                 checked: indicatorsPage.cfg_indicatorGroupSeparate
                 onToggled: indicatorsPage.cfg_indicatorGroupSeparate = checked
             }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorResize.checked && indicatorGroupSeparate.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit * 2 }
-    
-            Label {
-                text: Wrappers.i18n("Thickness:")
-            }
-            SpinBox {
-                id: indicatorGroupSize
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorGroupSeparate }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorGroupSeparate
+                label: Wrappers.i18n("Group thickness (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorGroupSize
                 onValueModified: indicatorsPage.cfg_indicatorGroupSize = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-    
-            Item { implicitWidth: indicatorsPage.largeSpacing }
-    
-            Label {
-                text: Wrappers.i18n("Length:")
-            }
-            SpinBox {
-                id: indicatorGroupLength
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorGroupSeparate }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.resizeOn && indicatorsPage.cfg_indicatorGroupSeparate
+                label: Wrappers.i18n("Group length (px)")
                 from: 1
                 to: 999
                 value: indicatorsPage.cfg_indicatorGroupLength
                 onValueModified: indicatorsPage.cfg_indicatorGroupLength = value
             }
-            Label {
-                text: Wrappers.i18nc("unit: pixels", "px")
+        }
+
+        // ---- Colors --------------------------------------------------------
+        FormCard.FormHeader {
+            visible: indicatorsPage.indicatorsOn
+            title: Wrappers.i18n("Colors")
+        }
+
+        FormCard.FormCard {
+            visible: indicatorsPage.indicatorsOn
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Use plasma accent color")
+                checked: indicatorsPage.cfg_indicatorAccentColor
+                onToggled: indicatorsPage.cfg_indicatorAccentColor = checked
+            }
+
+            FormCard.FormDelegateSeparator { visible: !indicatorsPage.cfg_indicatorAccentColor }
+
+            FormCard.FormSwitchDelegate {
+                visible: !indicatorsPage.cfg_indicatorAccentColor
+                text: Wrappers.i18n("Use theme text color")
+                description: Wrappers.i18n("Dark on light themes, light on dark themes.")
+                checked: indicatorsPage.cfg_indicatorTextColor
+                onToggled: indicatorsPage.cfg_indicatorTextColor = checked
+            }
+
+            FormCard.FormDelegateSeparator { visible: !indicatorsPage.cfg_indicatorAccentColor && !indicatorsPage.cfg_indicatorTextColor }
+
+            FormCard.FormSwitchDelegate {
+                visible: !indicatorsPage.cfg_indicatorAccentColor && !indicatorsPage.cfg_indicatorTextColor
+                text: Wrappers.i18n("Use dominant icon color")
+                checked: indicatorsPage.cfg_indicatorDominantColor
+                onToggled: indicatorsPage.cfg_indicatorDominantColor = checked
+            }
+
+            FormCard.FormDelegateSeparator {
+                visible: !indicatorsPage.cfg_indicatorAccentColor && !indicatorsPage.cfg_indicatorTextColor && !indicatorsPage.cfg_indicatorDominantColor
+            }
+
+            FormColorDelegate {
+                visible: !indicatorsPage.cfg_indicatorAccentColor && !indicatorsPage.cfg_indicatorTextColor && !indicatorsPage.cfg_indicatorDominantColor
+                label: Wrappers.i18n("Custom color")
+                showAlphaChannel: true
+                color: indicatorsPage.cfg_indicatorCustomColor
+                onColorPicked: c => indicatorsPage.cfg_indicatorCustomColor = c
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Use the attention color when a window wants attention")
+                checked: indicatorsPage.cfg_indicatorAttentionColor
+                onToggled: indicatorsPage.cfg_indicatorAttentionColor = checked
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Outline for contrast")
+                checked: indicatorsPage.cfg_indicatorOutline
+                onToggled: indicatorsPage.cfg_indicatorOutline = checked
             }
         }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            CheckBox {
-                id: indicatorHighlightActive
+
+        // ---- Behavior ------------------------------------------------------
+        FormCard.FormHeader {
+            visible: indicatorsPage.indicatorsOn
+            title: Wrappers.i18n("Behavior")
+        }
+
+        FormCard.FormCard {
+            visible: indicatorsPage.indicatorsOn
+
+            FormCard.FormSwitchDelegate {
                 text: Wrappers.i18n("Highlight active window in group")
                 checked: indicatorsPage.cfg_indicatorHighlightActive
                 onToggled: indicatorsPage.cfg_indicatorHighlightActive = checked
             }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            CheckBox {
-                id: indicatorDimInactive
-                text: Wrappers.i18n("Dim inactive indicators")
-                checked: indicatorsPage.cfg_indicatorDimInactive
-                onToggled: indicatorsPage.cfg_indicatorDimInactive = checked
-            }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && indicatorDimInactive.checked
-            spacing: indicatorsPage.smallSpacing
-            Item { implicitWidth: indicatorsPage.gridUnit }
-    
-            Label {
-                text: Wrappers.i18n("Inactive indicator opacity:")
-            }
-            SpinBox {
-                id: indicatorInactiveOpacity
-                from: 0
-                to: 100
-                stepSize: 5
-                value: indicatorsPage.cfg_indicatorInactiveOpacity
-                onValueModified: indicatorsPage.cfg_indicatorInactiveOpacity = value
-            }
-            Label {
-                text: "%"
-            }
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Focused indicator opacity:")
-            }
-            SpinBox {
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSpinBoxDelegate {
+                label: Wrappers.i18n("Focused indicator opacity (%)")
                 from: 10
                 to: 100
                 stepSize: 5
                 value: indicatorsPage.cfg_indicatorActiveOpacity
                 onValueModified: indicatorsPage.cfg_indicatorActiveOpacity = value
             }
-            Label {
-                text: "%"
-            }
-        }
 
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Roundness:")
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Dim inactive indicators")
+                checked: indicatorsPage.cfg_indicatorDimInactive
+                onToggled: indicatorsPage.cfg_indicatorDimInactive = checked
             }
-            SpinBox {
-                id: indicatorRadius
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_indicatorDimInactive }
+
+            FormCard.FormSpinBoxDelegate {
+                visible: indicatorsPage.cfg_indicatorDimInactive
+                label: Wrappers.i18n("Inactive indicator opacity (%)")
                 from: 0
-                to: 100
-                value: indicatorsPage.cfg_indicatorRadius
-                onValueModified: indicatorsPage.cfg_indicatorRadius = value
-            }
-            Label {
-                text: "%"
-            }
-    
-            Item { implicitWidth: indicatorsPage.largeSpacing; visible: indicatorsPage.isLineStyle }
-    
-            Label {
-                visible: indicatorsPage.isLineStyle
-                text: Wrappers.i18n("Side padding:")
-            }
-            SpinBox {
-                id: indicatorShrink
-                visible: indicatorsPage.isLineStyle
-                from: 0
-                to: 999
-                value: indicatorsPage.cfg_indicatorShrink
-                onValueModified: indicatorsPage.cfg_indicatorShrink = value
-            }
-            Label {
-                visible: indicatorsPage.isLineStyle
-                text: Wrappers.i18nc("unit: pixels", "px")
-            }
-        }
-    
-        Item { height: indicatorsPage.largeSpacing; visible: indicatorsEnabled.checked }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Max segments:")
-            }
-            SpinBox {
-                id: indicatorMaxLimit
-                from: 1
-                to: 99
-                value: indicatorsPage.cfg_indicatorMaxLimit
-                onValueModified: indicatorsPage.cfg_indicatorMaxLimit = value
-            }
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            id: indicatorShowPlus
-            text: Wrappers.i18n("Show '+' on overflow")
-            checked: indicatorsPage.cfg_indicatorShowPlus
-            onToggled: indicatorsPage.cfg_indicatorShowPlus = checked
-        }
-    
-        Item { height: indicatorsPage.largeSpacing; visible: indicatorsEnabled.checked }
-    
-        Label {
-            visible: indicatorsEnabled.checked
-            text: Wrappers.i18n("Colors:")
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            id: indicatorAccentColor
-            text: Wrappers.i18n("Use plasma accent color")
-            checked: indicatorsPage.cfg_indicatorAccentColor
-            onToggled: indicatorsPage.cfg_indicatorAccentColor = checked
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked && !indicatorAccentColor.checked
-            id: indicatorTextColor
-            text: Wrappers.i18n("Use theme text color (dark on light themes, light on dark themes)")
-            checked: indicatorsPage.cfg_indicatorTextColor
-            onToggled: indicatorsPage.cfg_indicatorTextColor = checked
-        }
-
-        CheckBox {
-            visible: indicatorsEnabled.checked && !indicatorAccentColor.checked && !indicatorTextColor.checked
-            id: indicatorDominantColor
-            text: Wrappers.i18n("Use dominant icon color")
-            checked: indicatorsPage.cfg_indicatorDominantColor
-            onToggled: indicatorsPage.cfg_indicatorDominantColor = checked
-        }
-    
-        RowLayout {
-            visible: indicatorsEnabled.checked && !indicatorAccentColor.checked && !indicatorTextColor.checked && !indicatorDominantColor.checked
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Custom color:")
-            }
-            KQuickAddons.ColorButton {
-                id: indicatorCustomColor
-                showAlphaChannel: true
-                color: indicatorsPage.cfg_indicatorCustomColor
-                onColorChanged: {
-                    if (!Qt.colorEqual(color, indicatorsPage.cfg_indicatorCustomColor)) {
-                        indicatorsPage.cfg_indicatorCustomColor = color
-                    }
-                }
-            }
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            text: Wrappers.i18n("Use the attention color when a window wants attention")
-            checked: indicatorsPage.cfg_indicatorAttentionColor
-            onToggled: indicatorsPage.cfg_indicatorAttentionColor = checked
-        }
-
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            text: Wrappers.i18n("Outline for contrast")
-            checked: indicatorsPage.cfg_indicatorOutline
-            onToggled: indicatorsPage.cfg_indicatorOutline = checked
-        }
-
-        Item { height: indicatorsPage.largeSpacing; visible: indicatorsEnabled.checked }
-    
-        Label {
-            visible: indicatorsEnabled.checked
-            text: Wrappers.i18n("Behavior:")
-        }
-    
-        CheckBox {
-            visible: indicatorsEnabled.checked
-            id: indicatorDesaturate
-            text: Wrappers.i18n("Desaturate when minimized")
-            checked: indicatorsPage.cfg_indicatorDesaturate
-            onToggled: indicatorsPage.cfg_indicatorDesaturate = checked
-        }
-    
-    
-    
-        Label {
-            text: Wrappers.i18n("Feedback:")
-        }
-    
-        CheckBox {
-            id: cfg_showBadges
-            text: Wrappers.i18n("Show badges")
-            checked: indicatorsPage.cfg_showBadges
-            onToggled: indicatorsPage.cfg_showBadges = checked
-        }
-
-        CheckBox {
-            text: Wrappers.i18n("Show the number of windows on apps with several windows")
-            checked: indicatorsPage.cfg_showWindowCount
-            onToggled: indicatorsPage.cfg_showWindowCount = checked
-        }
-    
-        RowLayout {
-            visible: cfg_showBadges.checked
-            Item { implicitWidth: indicatorsPage.gridUnit }
-            ColumnLayout {
-                CheckBox {
-                    id: cfg_badgeHighlightNew
-                    text: Wrappers.i18n("Highlight new notifications")
-                    checked: indicatorsPage.cfg_badgeHighlightNew
-                    onToggled: indicatorsPage.cfg_badgeHighlightNew = checked
-                }
-                RowLayout {
-                    spacing: indicatorsPage.smallSpacing
-                    CheckBox {
-                        id: cfg_showBadgesOnLaunchers
-                        text: Wrappers.i18n("Show badges on pinned application icons")
-                        checked: indicatorsPage.cfg_showBadgesOnLaunchers
-                        onToggled: indicatorsPage.cfg_showBadgesOnLaunchers = checked
-                    }
-                    Kirigami.Icon {
-                        source: "help-about"
-                        implicitWidth: indicatorsPage.gridUnit
-                        implicitHeight: indicatorsPage.gridUnit
-                        opacity: 0.6
-                        ToolTip.text: Wrappers.i18n("Show counters even when the application has no windows in the current view (e.g., minimized to tray or on another screen/desktop/activity).")
-                        ToolTip.visible: infoMouseArea.containsMouse
-                        MouseArea {
-                            id: infoMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                        }
-                    }
-                }
-                RowLayout {
-                    spacing: indicatorsPage.smallSpacing
-                    Label {
-                        text: Wrappers.i18n("Badge background color:")
-                    }
-                    ComboBox {
-                        id: cfg_badgeColorMode
-                        Layout.fillWidth: true
-                        model: [
-                            Wrappers.i18n("Adaptive (theme color)"),
-                            Wrappers.i18n("Fixed red (Classic)"),
-                            Wrappers.i18n("System accent color"),
-                            Wrappers.i18n("Custom color")
-                        ]
-                        currentIndex: indicatorsPage.cfg_badgeColorMode
-                        onActivated: (index) => indicatorsPage.cfg_badgeColorMode = index
-                    }
-                }
-                RowLayout {
-                    visible: cfg_badgeColorMode.currentIndex === 3
-                    spacing: indicatorsPage.smallSpacing
-                    Label {
-                        text: Wrappers.i18n("Custom badge color:")
-                    }
-                    KQuickAddons.ColorButton {
-                        id: badgeCustomColor
-                        showAlphaChannel: true
-                        color: indicatorsPage.cfg_badgeCustomColor
-                        onColorChanged: {
-                            if (!Qt.colorEqual(color, indicatorsPage.cfg_badgeCustomColor)) {
-                                indicatorsPage.cfg_badgeCustomColor = color
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    
-        CheckBox {
-            id: cfg_indicateAudioStreams
-            text: Wrappers.i18n("Mark applications playing audio")
-            checked: indicatorsPage.cfg_indicateAudioStreams
-            onToggled: indicatorsPage.cfg_indicateAudioStreams = checked
-            visible: indicatorsPage.plasmaPaAvailable
-        }
-    
-        Item { height: indicatorsPage.largeSpacing }
-    
-        Label {
-            text: Wrappers.i18n("Progress:")
-        }
-    
-        ComboBox {
-            id: indicatorProgressStyle
-            model: [
-                Wrappers.i18nc("State", "Disabled"),
-                Wrappers.i18n("Fill (Left-Right)"),
-                Wrappers.i18n("Fill (Bottom-Top)"),
-                Wrappers.i18n("Strip (Top)"),
-                Wrappers.i18n("Strip (Bottom)"),
-                Wrappers.i18n("Strip (Left)"),
-                Wrappers.i18n("Strip (Right)")
-            ]
-            currentIndex: indicatorsPage.cfg_indicatorProgressStyle
-            onActivated: indicatorsPage.cfg_indicatorProgressStyle = currentIndex
-        }
-    
-        CheckBox {
-            visible: indicatorProgressStyle.currentIndex > 0
-            text: Wrappers.i18n("Use theme accent color for progress")
-            checked: indicatorsPage.cfg_indicatorProgressThemeColor
-            onToggled: indicatorsPage.cfg_indicatorProgressThemeColor = checked
-        }
-
-        RowLayout {
-            visible: indicatorProgressStyle.currentIndex > 0 && !indicatorsPage.cfg_indicatorProgressThemeColor
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Progress color:")
-            }
-            KQuickAddons.ColorButton {
-                id: indicatorProgressColor
-                showAlphaChannel: true
-                color: indicatorsPage.cfg_indicatorProgressColor
-                onColorChanged: {
-                    if (!Qt.colorEqual(color, indicatorsPage.cfg_indicatorProgressColor)) {
-                        indicatorsPage.cfg_indicatorProgressColor = color
-                    }
-                }
-            }
-        }
-    
-        RowLayout {
-            visible: indicatorProgressStyle.currentIndex > 0
-            spacing: indicatorsPage.smallSpacing
-            Label {
-                text: Wrappers.i18n("Thickness:")
-                visible: indicatorProgressStyle.currentIndex >= 3 // Only show label for strips
-            }
-            Slider {
-                id: indicatorProgressThickness
-                visible: indicatorProgressStyle.currentIndex >= 3 // Thickness only for strips
-                from: 1
-                to: 10
-                stepSize: 1
-                value: indicatorsPage.cfg_indicatorProgressThickness
-                onMoved: indicatorsPage.cfg_indicatorProgressThickness = value
-            }
-    
-            Item {
-                implicitWidth: indicatorsPage.largeSpacing
-                visible: indicatorProgressStyle.currentIndex > 0
-            }
-    
-            Label {
-                text: Wrappers.i18n("Opacity:")
-            }
-            Slider {
-                id: indicatorProgressOpacity
-                from: 10
                 to: 100
                 stepSize: 5
-                value: indicatorsPage.cfg_indicatorProgressOpacity
-                onMoved: indicatorsPage.cfg_indicatorProgressOpacity = value
+                value: indicatorsPage.cfg_indicatorInactiveOpacity
+                onValueModified: indicatorsPage.cfg_indicatorInactiveOpacity = value
             }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Desaturate when minimized")
+                checked: indicatorsPage.cfg_indicatorDesaturate
+                onToggled: indicatorsPage.cfg_indicatorDesaturate = checked
             }
+        }
+
+        // ---- Badges --------------------------------------------------------
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Badges")
+        }
+
+        FormCard.FormCard {
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Show badges")
+                checked: indicatorsPage.cfg_showBadges
+                onToggled: indicatorsPage.cfg_showBadges = checked
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_showBadges }
+
+            FormCard.FormSwitchDelegate {
+                visible: indicatorsPage.cfg_showBadges
+                text: Wrappers.i18n("Highlight new notifications")
+                checked: indicatorsPage.cfg_badgeHighlightNew
+                onToggled: indicatorsPage.cfg_badgeHighlightNew = checked
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_showBadges }
+
+            FormCard.FormSwitchDelegate {
+                visible: indicatorsPage.cfg_showBadges
+                text: Wrappers.i18n("Show badges on pinned application icons")
+                description: Wrappers.i18n("Show counters even when the application has no windows in the current view (e.g., minimized to tray or on another screen/desktop/activity).")
+                checked: indicatorsPage.cfg_showBadgesOnLaunchers
+                onToggled: indicatorsPage.cfg_showBadgesOnLaunchers = checked
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_showBadges }
+
+            FormCard.FormComboBoxDelegate {
+                visible: indicatorsPage.cfg_showBadges
+                text: Wrappers.i18n("Badge background color")
+                model: [
+                    Wrappers.i18n("Adaptive (theme color)"),
+                    Wrappers.i18n("Fixed red (Classic)"),
+                    Wrappers.i18n("System accent color"),
+                    Wrappers.i18n("Custom color")
+                ]
+                currentIndex: indicatorsPage.cfg_badgeColorMode
+                onActivated: (index) => indicatorsPage.cfg_badgeColorMode = index
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_showBadges && indicatorsPage.cfg_badgeColorMode === 3 }
+
+            FormColorDelegate {
+                visible: indicatorsPage.cfg_showBadges && indicatorsPage.cfg_badgeColorMode === 3
+                label: Wrappers.i18n("Custom badge color")
+                showAlphaChannel: true
+                color: indicatorsPage.cfg_badgeCustomColor
+                onColorPicked: c => indicatorsPage.cfg_badgeCustomColor = c
+            }
+
+            FormCard.FormDelegateSeparator {}
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Show the number of windows on apps with several windows")
+                checked: indicatorsPage.cfg_showWindowCount
+                onToggled: indicatorsPage.cfg_showWindowCount = checked
+            }
+        }
+
+        // ---- Audio ---------------------------------------------------------
+        FormCard.FormHeader {
+            visible: indicatorsPage.plasmaPaAvailable
+            title: Wrappers.i18n("Audio")
+        }
+
+        FormCard.FormCard {
+            visible: indicatorsPage.plasmaPaAvailable
+
+            FormCard.FormSwitchDelegate {
+                text: Wrappers.i18n("Mark applications playing audio")
+                checked: indicatorsPage.cfg_indicateAudioStreams
+                onToggled: indicatorsPage.cfg_indicateAudioStreams = checked
+            }
+        }
+
+        // ---- Progress ------------------------------------------------------
+        FormCard.FormHeader {
+            title: Wrappers.i18n("Progress")
+        }
+
+        FormCard.FormCard {
+            FormCard.FormComboBoxDelegate {
+                text: Wrappers.i18n("Progress style")
+                model: [
+                    Wrappers.i18nc("State", "Disabled"),
+                    Wrappers.i18n("Fill (Left-Right)"),
+                    Wrappers.i18n("Fill (Bottom-Top)"),
+                    Wrappers.i18n("Strip (Top)"),
+                    Wrappers.i18n("Strip (Bottom)"),
+                    Wrappers.i18n("Strip (Left)"),
+                    Wrappers.i18n("Strip (Right)")
+                ]
+                currentIndex: indicatorsPage.cfg_indicatorProgressStyle
+                onActivated: (index) => indicatorsPage.cfg_indicatorProgressStyle = index
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.progressOn }
+
+            FormCard.FormSwitchDelegate {
+                visible: indicatorsPage.progressOn
+                text: Wrappers.i18n("Use theme accent color for progress")
+                checked: indicatorsPage.cfg_indicatorProgressThemeColor
+                onToggled: indicatorsPage.cfg_indicatorProgressThemeColor = checked
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.progressOn && !indicatorsPage.cfg_indicatorProgressThemeColor }
+
+            FormColorDelegate {
+                visible: indicatorsPage.progressOn && !indicatorsPage.cfg_indicatorProgressThemeColor
+                label: Wrappers.i18n("Progress color")
+                showAlphaChannel: true
+                color: indicatorsPage.cfg_indicatorProgressColor
+                onColorPicked: c => indicatorsPage.cfg_indicatorProgressColor = c
+            }
+
+            // Thickness only applies to the strip styles
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.cfg_indicatorProgressStyle >= 3 }
+
+            FormCard.AbstractFormDelegate {
+                visible: indicatorsPage.cfg_indicatorProgressStyle >= 3
+                background: null
+                focusPolicy: Qt.NoFocus
+
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.largeSpacing
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: Wrappers.i18n("Thickness")
+                        elide: Text.ElideRight
+                    }
+                    Slider {
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 10
+                        from: 1
+                        to: 10
+                        stepSize: 1
+                        value: indicatorsPage.cfg_indicatorProgressThickness
+                        onMoved: indicatorsPage.cfg_indicatorProgressThickness = value
+                    }
+                    Label {
+                        Layout.minimumWidth: Kirigami.Units.gridUnit * 2
+                        horizontalAlignment: Text.AlignRight
+                        text: Wrappers.i18nc("unit: pixels", "%1 px", indicatorsPage.cfg_indicatorProgressThickness)
+                    }
+                }
+            }
+
+            FormCard.FormDelegateSeparator { visible: indicatorsPage.progressOn }
+
+            FormCard.AbstractFormDelegate {
+                visible: indicatorsPage.progressOn
+                background: null
+                focusPolicy: Qt.NoFocus
+
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.largeSpacing
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: Wrappers.i18n("Opacity")
+                        elide: Text.ElideRight
+                    }
+                    Slider {
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 10
+                        from: 10
+                        to: 100
+                        stepSize: 5
+                        value: indicatorsPage.cfg_indicatorProgressOpacity
+                        onMoved: indicatorsPage.cfg_indicatorProgressOpacity = value
+                    }
+                    Label {
+                        Layout.minimumWidth: Kirigami.Units.gridUnit * 2
+                        horizontalAlignment: Text.AlignRight
+                        text: indicatorsPage.cfg_indicatorProgressOpacity + "%"
+                    }
+                }
+            }
+        }
     }
 }

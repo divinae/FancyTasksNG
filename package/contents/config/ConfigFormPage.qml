@@ -10,10 +10,10 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 
 // Shared scaffold for a settings page that's just a Live Preview above a
-// scrollable form: ConfigAppearance/Behavior/Indicators/Advanced each
-// instantiate this once instead of repeating the ColumnLayout/LivePreview/
-// ConfigScrollView/FormLayout structure themselves. Content declared inside
-// a `ConfigFormPage { ... }` instance becomes rows of the form.
+// scrollable column of FormCard cards: ConfigAppearance/Behavior/Indicators/
+// Advanced each instantiate this once. Content declared inside a
+// `ConfigFormPage { ... }` instance (FormCard.FormHeader, FormCard.FormCard, ...)
+// is stacked in the column.
 //
 // Not used by ConfigPinnedApps.qml, which has its own StackView-based root
 // layout - opt-in via explicit instantiation, not a base-class default
@@ -38,9 +38,12 @@ ColumnLayout {
     ConfigScrollView {
         cfg_page: formPage.cfg_page
 
-        Kirigami.FormLayout {
+        // Cards (FormCard.FormHeader + FormCard.FormCard) stacked like a SimpleKCM page,
+        // matching the look of other Kirigami Addons based settings
+        ColumnLayout {
             id: pageFormLayout
-            width: parent.width - formPage.cfg_page.gridUnit * 2
+            width: parent.width
+            spacing: 0
         }
     }
 }
