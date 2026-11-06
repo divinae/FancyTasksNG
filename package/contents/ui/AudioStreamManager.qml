@@ -10,12 +10,49 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+
+import "code/singletones"
 import org.kde.plasma.private.volume as PlasmaPa
 
 QtObject {
     id: audioStreamManager
 
     signal streamsChanged()
+
+    // Parent PID of each stream PID (from the helper; QML can't read /proc). Chromium-family
+    // browsers play audio from a utility child process whose parent owns the windows.
+    property var parentPidMap: ({})
+    function refreshParentPids(): void {
+        const missing = [];
+        for (let i = 0; i < instantiator.count; ++i) {
+            const stream = instantiator.objectAt(i);
+            if (stream && stream.pid > 0 && !(String(stream.pid) in parentPidMap) && missing.indexOf(stream.pid) === -1)
+                missing.push(stream.pid);
+        }
+        if (missing.length === 0)
+            return;
+        DesktopActionsManager.parentPids(missing, map => {
+            const next = Object.assign({}, audioStreamManager.parentPidMap);
+            for (const pid of missing)
+                next[String(pid)] = map[String(pid)] || 0;
+            audioStreamManager.parentPidMap = next;
+            audioStreamManager.streamsChanged();
+        });
+    }
+
+    // PIDs (or parent PIDs) of streams some task already owns through a direct PID match. The
+    // app-name fallback must not hand those streams to another task: separate installs of the
+    // same app (e.g. two Firefox builds) report the same application.name. (Upstream 1585d98.)
+    property var pidMatches: ({})
+    function registerPidMatch(pid: int): void {
+        if (pid > 0 && !(pid in pidMatches)) {
+            const next = Object.assign({}, pidMatches);
+            next[pid] = true;
+            pidMatches = next;
+            // Lets a task that already grabbed this stream by name drop it
+            streamsChanged();
+        }
+    }
     
     readonly property QtObject globalConfig: PlasmaPa.GlobalConfig { }
     
@@ -34,6 +71,9 @@ QtObject {
             required property var model
             
             readonly property int pid: model.Client?.properties["application.process.id"] ?? 0
+            readonly property int parentPid: audioStreamManager.parentPidMap[String(pid)] || 0
+            // Notification sounds Plasma plays on an app's behalf are not the app's audio
+            readonly property bool isPlasmaSound: (model.Client?.properties["application.process.binary"] ?? "") === "plasmashell"
             readonly property string appName: model.Client?.properties["application.name"] ?? ""
             readonly property string portalAppId: model.Client?.properties["pipewire.access.portal.app_id"] ?? ""
             
@@ -74,15 +114,21 @@ QtObject {
             }
         }
 
-        onObjectAdded: (index, object) => audioStreamManager.streamsChanged()
+        onObjectAdded: (index, object) => {
+            audioStreamManager.streamsChanged();
+            Qt.callLater(audioStreamManager.refreshParentPids);
+        }
         onObjectRemoved: (index, object) => audioStreamManager.streamsChanged()
     }
 
     // Streams of an app: by portal app id (sandboxed apps), then process id, then app name
     function streamsForApp(appId: string, pid: int, appName: string): var {
         let streams = streamsForAppId(String(appId || "").replace(/\.desktop$/, ""));
-        if (!streams.length)
+        if (!streams.length) {
             streams = streamsForPid(pid);
+            if (streams.length)
+                registerPidMatch(pid);
+        }
         if (!streams.length)
             streams = streamsForAppName(appName);
         return streams;
@@ -95,14 +141,16 @@ QtObject {
 
     function streamsForAppName(appName: string): var {
         if (!appName) return [];
-        return findStreams(stream => stream.appName === appName);
+        return findStreams(stream => stream.appName === appName
+            && !(stream.pid in pidMatches) && !(stream.parentPid in pidMatches));
     }
 
     function streamsForPid(pid: int): var {
         if (pid <= 0) return [];
         
         // 1. Try direct PID match
-        let streams = findStreams(stream => stream.pid === pid && !stream.portalAppId);
+        // The window's process, or its child for Chromium-family audio helpers
+        let streams = findStreams(stream => (stream.pid === pid || stream.parentPid === pid) && !stream.portalAppId);
         
         
         return streams;
@@ -112,7 +160,7 @@ QtObject {
         const results = [];
         for (let i = 0, count = instantiator.count; i < count; ++i) {
             const stream = instantiator.objectAt(i);
-            if (stream && predicate(stream)) {
+            if (stream && !stream.isPlasmaSound && predicate(stream)) {
                 results.push(stream);
             }
         }

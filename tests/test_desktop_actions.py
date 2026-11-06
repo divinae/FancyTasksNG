@@ -329,5 +329,11 @@ class WebAppTracksTest(unittest.TestCase):
         self.assertEqual(da.url_host(""), "")
 
 
+class ParentPidsTest(unittest.TestCase):
+    def test_own_process(self):
+        result = da.parent_pids(f"{os.getpid()}, abc, 999999999")
+        self.assertEqual(result, {str(os.getpid()): os.getppid()})
+
+
 if __name__ == "__main__":
     unittest.main()

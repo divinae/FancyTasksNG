@@ -225,6 +225,9 @@ Item {
         function onWebAppTracksChanged() {
             controller.updateAudioStreams({ delay: false, force: true });
         }
+        function onWebAppLaunchersChanged() {
+            controller.updateAudioStreams({ delay: false, force: true });
+        }
     }
     Component.onCompleted: {
         updateAudioStreams({

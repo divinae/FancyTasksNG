@@ -98,6 +98,9 @@ Item {
         function onWebAppTracksChanged(): void {
             controller.updateAudioStreams();
         }
+        function onWebAppLaunchersChanged(): void {
+            controller.updateAudioStreams();
+        }
     }
 
     // Listen to task metadata and state changes

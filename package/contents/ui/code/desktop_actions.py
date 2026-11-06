@@ -822,6 +822,20 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='s')
+    def ParentPids(self, pids_csv):
+        """JSON {pid: parentPid} for comma-separated PIDs (QML can't read /proc).
+
+        Chromium-family browsers play audio from a utility child process, so its stream PID
+        only matches a window through its parent. (Ported from upstream 968431f.)
+        """
+        return json.dumps(parent_pids(pids_csv))
+
+    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='as', out_signature='s')
+    def WebAppLaunchers(self, launcher_urls):
+        """JSON list of the given launcher URLs that are browser web apps (--app=URL)."""
+        return json.dumps([str(u) for u in launcher_urls if web_app_host(resolve_launcher_url(str(u)))])
+
     @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='as', out_signature='s')
     def WebAppTracks(self, launcher_urls):
         """JSON {launcherUrl: {"track", "pid"}} for open browser web app windows (e.g. a
@@ -989,6 +1003,24 @@ def desktop_file_id(desktop_path, app_dirs=None):
         if path.startswith(app_dir + os.sep):
             return os.path.relpath(path, app_dir).replace(os.sep, "-")
     return os.path.basename(path)
+
+
+def parent_pids(pids_csv, proc_root="/proc"):
+    """{pid: parentPid} for comma-separated PIDs; PIDs that no longer exist are omitted."""
+    result = {}
+    for token in str(pids_csv).split(","):
+        token = token.strip()
+        if not token.isdigit():
+            continue
+        try:
+            with open(f"{proc_root}/{token}/status", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("PPid:"):
+                        result[token] = int(line.split()[1])
+                        break
+        except (OSError, ValueError, IndexError):
+            pass
+    return result
 
 
 def url_host(url):

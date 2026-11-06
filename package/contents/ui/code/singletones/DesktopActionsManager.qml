@@ -270,6 +270,28 @@ Item {
         }
     }
 
+    // {pid: parentPid} for the given PIDs (desktop_actions.parent_pids)
+    function parentPids(pids, callback) {
+        _call(root._service, "ParentPids", [pids.join(",")], "(s)", reply => {
+            try {
+                callback(reply.startsWith("{") ? JSON.parse(reply) : {});
+            } catch (e) {
+                callback({});
+            }
+        });
+    }
+
+    // The given launcher URLs that are browser web apps (--app=URL)
+    function webAppLaunchers(launcherUrls, callback) {
+        _call(root._service, "WebAppLaunchers", [launcherUrls], "(as)", reply => {
+            try {
+                callback(reply.startsWith("[") ? JSON.parse(reply) : []);
+            } catch (e) {
+                callback([]);
+            }
+        });
+    }
+
     function killApp(pid, callback) {
         _call(root._service, "KillApp", [parseInt(pid)], "(i)", callback);
     }

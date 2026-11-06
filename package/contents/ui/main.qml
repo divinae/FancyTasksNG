@@ -584,6 +584,24 @@ PlasmoidItem {
         };
         walk(model.index(-1, -1));
         DesktopActionsManager.webAppTracks(urls, map => tasks.setWebAppTracks(map));
+        DesktopActionsManager.webAppLaunchers(urls, list => {
+            if (JSON.stringify(list) !== JSON.stringify(tasks.webAppLaunchers))
+                tasks.webAppLaunchers = list;
+        });
+    }
+
+    // Launcher URLs of open windows that are browser web apps (--app=URL). They share their
+    // browser's process, so its audio would match them by PID too; they only get it while
+    // their own player is playing (see audioStreamsFor).
+    property var webAppLaunchers: []
+    Connections {
+        target: tasks.tasksModel
+        function onRowsInserted() { webAppRefreshTimer.restart(); }
+    }
+    Timer {
+        id: webAppRefreshTimer
+        interval: 1000
+        onTriggered: tasks.refreshWebAppTracks()
     }
 
     // Keep the web app claims fresh while any player exists, so the panel's audio icons
@@ -631,6 +649,8 @@ PlasmoidItem {
         const own = pa.streamsForApp(appId, pid, appName);
         const claims = tasks.webAppTracks || {};
         const myClaim = claims[launcherUrl];
+        if (!myClaim && tasks.webAppLaunchers.indexOf(launcherUrl) !== -1)
+            return []; // a web app whose player isn't playing: the browser's audio isn't its
         if (myClaim) {
             if (own.length > 0)
                 return own;
