@@ -1,9 +1,29 @@
-# Taskline
+# Taskline for Plasma 6
 
-A task manager for the Plasma 6 panel: icons or labeled buttons for your pinned apps and open
-windows, with live window previews, media controls on the window that's actually playing,
-unread badges, and attention signals that tell you which window wants you without getting in
-your way.
+[![CI](https://github.com/divinae/Taskline/actions/workflows/ci.yml/badge.svg)](https://github.com/divinae/Taskline/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](#license)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/divinae4535)
+
+**Your windows, at a glance, on the panel.** A task manager for Plasma 6: icons or labeled
+buttons for your pinned apps and open windows, with live window previews, media controls on the
+window that's actually playing, unread badges, and attention signals that tell you which window
+wants you without getting in your way.
+
+### Why you'll like it
+
+- 🪟 **Previews that read.** Each window's shape, smoothly scaled with rounded corners, and in a
+  group the part of the title that differs in bold, so you pick the right one at once.
+- 🎵 **Media where it plays.** Play, pause, skip, seek and volume on the window that's actually
+  playing, including web apps: a Spotify app run by the browser shows them on its own window.
+- 🔔 **Attention without nagging.** As on the Windows taskbar: a bounce and the attention color
+  for 30 seconds, then a steady mark and one reminder every 5 minutes; only the window that asked
+  is marked.
+- 🔢 **Badges and progress.** Unread counts, the number of open windows, and a progress bar for
+  downloads and copies.
+- 🧭 **Everything an app offers.** Its jump list, recent documents and folders, recent pages for
+  browsers, Places for file managers, Open at Login and Force Quit, in the context menu.
+- 🎨 **Yours to shape.** Icons or labeled buttons, lines or dots in the color you choose, grouped
+  always or only when the panel runs out of room; Meta+1…9 and drag and drop.
 
 Taskline is a fork of [Fancy Tasks NG](https://github.com/daydve/FancyTasksNG) by Vitaliy Elin.
 It has its own name and widget ID (`io.github.divinae.taskline`), so the two can be installed
@@ -102,6 +122,29 @@ for bug reports (`taskline-diag.txt`). The changes since the fork are in the
   tab play at the same time, the sound counts for the web app.
 - **The bouncing icon doesn't appear at the screen edge:** it only shows for auto-hidden panels,
   and not while a window is fullscreen.
+
+## Bugs and ideas
+
+Report them in [GitHub Issues](https://github.com/divinae/Taskline/issues): your distribution, the
+Plasma version, Taskline's version, and for a problem the diagnostics report:
+
+```sh
+make diag   # writes taskline-diag.txt
+```
+
+For something that goes wrong in the panel, the log right after it happens helps too:
+
+```sh
+journalctl --user -b --since "-15min" | grep -i -E "taskline|plasmashell" > taskline.log
+```
+
+Look both over before attaching them: they may name your windows.
+
+## Support
+
+If Taskline is useful to you, you can buy me a coffee on [Ko-fi](https://ko-fi.com/divinae4535).
+That goes to this fork's maintainer, not to the authors of Fancy Tasks NG and the widgets before
+it (below); Vitaliy Elin takes support on [Ko-fi](https://ko-fi.com/daydve) too.
 
 ## Credits
 
