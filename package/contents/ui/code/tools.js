@@ -327,7 +327,6 @@ function activateTask(index, model, modifiers, task, plasmoid, tasks, windowView
             } else {
                 tasks.toolTipOpenedByClick = task;
                 tasks.currentHoveredTask = task;
-                task.toolTipOpen = true;
             }
         }
     } else {

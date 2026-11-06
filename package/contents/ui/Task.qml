@@ -164,7 +164,8 @@ Item {
     readonly property string appName: (task.model && task.model.AppName) ? task.model.AppName : ""
     readonly property string appId: (task.model && task.model.AppId) ? task.model.AppId.replace(/\.desktop/, '') : ""
     readonly property bool isIcon: task.model ? (tasksRoot.iconsOnly || !!task.model.IsLauncher) : tasksRoot.iconsOnly
-    property bool toolTipOpen: false
+    // Whether the shared tooltip currently shows this task
+    readonly property bool toolTipOpen: !!task.tasksRoot && task.tasksRoot.currentHoveredTask === task
     property bool inPopup: false
 
     property bool isWindow: !!(task.model && task.model.IsWindow)
@@ -348,24 +349,6 @@ Item {
     }
 
     Timer {
-        id: closeTimer
-        interval: 250 // Time to cross the gap
-        onTriggered: {
-            if (task.tasksRoot.isTooltipHovered) {
-                return;
-            }
-
-            if (task.tasksRoot.currentHoveredTask === task) {
-                 task.tasksRoot.currentHoveredTask = null;
-                 task.tasksRoot.toolTipOpenedByClick = null;
-            }
-            task.toolTipOpen = false;
-        }
-    }
-
-
-
-    Timer {
         id: openTimer
         interval: task.config.tooltipDelay
         onTriggered: {
@@ -391,7 +374,6 @@ Item {
         if (containsMouse) {
             tasksRoot.instantHoveredTask = task;
             task.forceActiveFocus(Qt.MouseFocusReason);
-            closeTimer.stop();
             
             // If tooltip is already visible (switching between tasks), delay slightly to allow diagonal movement
             if (tasksRoot.currentHoveredTask && tasksRoot.currentHoveredTask !== task) {
@@ -405,7 +387,7 @@ Item {
             }
             openTimer.stop();
             switchTimer.stop();
-            closeTimer.start();
+            // Closing is main.qml's tooltipCloseTimer
         }
     }
 
@@ -626,21 +608,10 @@ Item {
         if (!task.config.enableToolTips)
             return;
         task.tasksRoot.currentHoveredTask = task;
-        task.toolTipOpen = true;
     }
 
     function closeTooltip(): void {
-        task.toolTipOpen = false;
-        
-        // Use immediate hide if available to prevent animation from stealing focus
-        // qmllint disable missing-property
-        if (typeof tasksRoot.hideTooltipImmediately === "function") {
-            tasksRoot.hideTooltipImmediately();
-        } else {
-            tasksRoot.currentHoveredTask = null;
-            tasksRoot.toolTipOpenedByClick = null;
-        }
-        // qmllint enable missing-property
+        task.tasksRoot.hideTooltipImmediately();
     }
 
     function showContextMenu(args: var): void {

@@ -251,7 +251,6 @@ PlasmoidItem {
 
     function hideTooltipImmediately() {
         tasks.currentHoveredTask = null;
-        tasks.toolTipOpenedByClick = null;
     }
 
     // Key: WinId, Value: { result: ItemGrabResult, stamp: ms }
@@ -291,17 +290,22 @@ PlasmoidItem {
         if (currentHoveredTask) {
             lastTooltipParent = currentHoveredTask.tooltipAnchor;
         }
+        // A click-opened tooltip ends when the tooltip closes or moves to another task
+        if (toolTipOpenedByClick && toolTipOpenedByClick !== currentHoveredTask) {
+            toolTipOpenedByClick = null;
+        }
     }
 
+    // The one place a hover tooltip closes: once neither its task, nor the tooltip, nor a
+    // drag hovering the task (MouseHandler) holds it. The delay leaves time to cross the gap
+    // to the tooltip or to move to the next task (Task.switchTimer opens that one sooner).
+    readonly property bool tooltipUnheld: tasks.currentHoveredTask !== null && !tasks.isTooltipHovered
+        && !tasks.currentHoveredTask.containsMouse && tasks.currentHoveredTask !== mouseHandler.hoveredItem
     Timer {
         id: tooltipCloseTimer
-        interval: 500
-        running: !tasks.isTooltipHovered && tasks.currentHoveredTask !== null && !tasks.currentHoveredTask.containsMouse && tasks.currentHoveredTask !== mouseHandler.hoveredItem
-        onTriggered: {
-            if (!tasks.isTooltipHovered && (tasks.currentHoveredTask && !tasks.currentHoveredTask.containsMouse && tasks.currentHoveredTask !== mouseHandler.hoveredItem)) {
-                tasks.currentHoveredTask = null;
-            }
-        }
+        interval: 250
+        running: tasks.tooltipUnheld
+        onTriggered: if (tasks.tooltipUnheld) tasks.hideTooltipImmediately()
     }
 
     readonly property Component contextMenuComponent: Qt.createComponent("ContextMenu.qml")

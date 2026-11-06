@@ -93,11 +93,6 @@ DropArea {
         }
 
         if (!dropArea.tasks.dragSource && hoveredItem !== above) {
-            if (hoveredItem && hoveredItem !== above && hoveredItem.toolTipOpen) {
-                let oldHovered = hoveredItem;
-                hideTooltipTimer.itemToHide = oldHovered;
-                hideTooltipTimer.restart();
-            }
             hoveredItem = above;
             activationTimer.restart();
         }
@@ -123,25 +118,10 @@ DropArea {
         if (dropArea.tasks.dragSource)
             dropArea.tasks.dragEndedOutsidePanel = true;
         dropArea.tasks.dropIndicator.visible = false;
-        if (hoveredItem && hoveredItem.toolTipOpen) {
-            hideTooltipTimer.itemToHide = hoveredItem;
-            hideTooltipTimer.restart();
-        }
         hoveredItem = null;
         activationTimer.stop();
     }
 
-    Timer {
-        id: hideTooltipTimer
-        interval: 500
-        repeat: false
-        property var itemToHide: null
-        onTriggered: {
-            if (itemToHide && itemToHide.toolTipOpen && !dropArea.tasks.isTooltipHovered) {
-                itemToHide.toolTipOpen = false;
-            }
-        }
-    }
 
     onDropped: event => {
         dropArea.tasks.dragEndedOutsidePanel = false;
@@ -206,7 +186,6 @@ DropArea {
         onTriggered: {
             if (parent.hoveredItem.model.IsGroupParent) {
                 parent.hoveredItem.tasksRoot.currentHoveredTask = parent.hoveredItem;
-                parent.hoveredItem.toolTipOpen = true;
             } else if (!parent.hoveredItem.model.IsLauncher) {
                 dropArea.tasks.tasksModel.requestActivate(parent.hoveredItem.modelIndex());
             }
