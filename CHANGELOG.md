@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **From upstream 2.3.0:** task order restored after a Plasma restart, optional button width fitted to the title, optional cursor-following glow, a more detailed `make diag` report.
 - **Calmer Attention:** Like the Windows taskbar, an app asking for attention bounces for the first 30 seconds (panel icon and screen-edge peek), then only shows a steady colored mark, with one reminder bounce every 5 minutes until it gets attention.
 - **Group Tooltips:** With several windows, thumbnail tiles follow each window's shape (narrow terminals get narrow tiles with bigger images), and an option on the Behavior page lists the most recently used windows first.
 - **Progress Color:** The task progress indicator uses the theme's accent color by default (option on the Indicators page); the custom color is still available.
@@ -40,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Media Controls:** Player controls are now shown in a bar under the thumbnail by default, always visible like in the stock Task Manager (the hover overlay is still available in the settings).
 
 ### Fixed
+- **From upstream 2.3.0:** "Do not sort" keeps a pinned app in its slot when its last window closes; the drag drop indicator only shows where the drop is possible; no slide delay outside icons-only mode; clicking the track title in a tooltip activates the window; a paused VLC can be resumed; another install of the same app no longer shows this app's audio; Chromium audio helper processes count as their browser; notification sounds no longer light up an app's audio indicator.
 - **Browser Web Apps and Media:** Music played in a browser web app (e.g. a Spotify app run by Vivaldi or Chrome) now shows its player controls on the web app window instead of on the main browser window.
 - **Group Tooltips with Filters:** Closing, activating or dropping files on a window in a group tooltip now targets the right window when the minimized or reverse filters hide some tasks.
 - **Settings Applied Live:** Switching icons-only mode or the group popup option now updates the task list immediately instead of after a Plasma restart.
