@@ -18,10 +18,7 @@ import "../ui/code/singletones"
 ConfigPage {
     id: appearancePage
 
-    // Silence KCM errors for legacy/removed properties
-    readonly property bool plasmaPaAvailable: true
     readonly property bool plasmoidVertical: appearancePage.plasmoidFormFactor === PlasmaCore.Types.Vertical
-    readonly property bool iconOnly: appearancePage.plasmoidConfiguration.iconOnly
 
     ConfigFormPage {
         cfg_page: appearancePage

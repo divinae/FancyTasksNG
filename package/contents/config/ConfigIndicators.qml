@@ -17,9 +17,6 @@ import "../ui/code/singletones"
 ConfigPage {
     id: indicatorsPage
 
-    // Silence KCM errors for legacy/removed properties
-    readonly property bool plasmaPaAvailable: true
-
     readonly property bool isLineStyle: indicatorsPage.cfg_indicatorStyle === 0
 
     readonly property bool indicatorsOn: indicatorsPage.cfg_indicatorsEnabled
@@ -481,13 +478,10 @@ ConfigPage {
 
         // ---- Audio ---------------------------------------------------------
         FormCard.FormHeader {
-            visible: indicatorsPage.plasmaPaAvailable
             title: Wrappers.i18n("Audio")
         }
 
         FormCard.FormCard {
-            visible: indicatorsPage.plasmaPaAvailable
-
             FormCard.FormSwitchDelegate {
                 text: Wrappers.i18n("Mark applications playing audio")
                 checked: indicatorsPage.cfg_indicateAudioStreams

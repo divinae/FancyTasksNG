@@ -291,16 +291,9 @@ Kirigami.Page {
     readonly property int smallSpacing: Kirigami.Units.smallSpacing
     readonly property int largeSpacing: Kirigami.Units.largeSpacing
     readonly property int shortDuration: Kirigami.Units.shortDuration
-    readonly property int iconSizeSmall: Kirigami.Units.iconSizes.small
-    readonly property int iconSizeSmallMedium: Kirigami.Units.iconSizes.smallMedium
 
     // Kirigami.Theme
-    readonly property color themeHoverColor: Kirigami.Theme.hoverColor
     readonly property color themeHighlightColor: Kirigami.Theme.highlightColor
-    readonly property color themeTextColor: Kirigami.Theme.textColor
-    readonly property color themeNegativeTextColor: Kirigami.Theme.negativeTextColor
-    readonly property font themeSmallFont: Kirigami.Theme.smallFont
-    readonly property font themeDefaultFont: Kirigami.Theme.defaultFont
 
     // Kirigami.Settings
     readonly property bool tabletMode: Kirigami.Settings.tabletMode

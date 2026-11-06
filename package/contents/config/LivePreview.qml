@@ -49,7 +49,6 @@ Item {
     // Grouping mode tracking
     readonly property int groupMode: cfg_page.cfg_groupingStrategy
     readonly property bool groupPopups: cfg_page.cfg_groupPopups
-    readonly property bool groupOverlay: cfg_page.cfg_groupIconEnabled
 
     onGroupModeChanged: rebuildTaskModel()
     onGroupPopupsChanged: rebuildTaskModel()
@@ -143,8 +142,6 @@ Item {
         let bottomAdj = adjustMargin(false, baseW, taskFrame.margins.bottom);
         return (baseW + hMargins) - (topAdj + bottomAdj);
     }
-    readonly property int simulatedMinWidth: iconsOnly ? simulatedMinLauncherWidth : (simulatedMinLauncherWidth + Kirigami.Units.gridUnit * 10)
-    
     readonly property int simulatedMaxWidth: iconsOnly ? (isVertical ? (simulatedThickness + verticalMargins()) : (simulatedThickness + horizontalMargins())) : (Kirigami.Units.gridUnit * 12)
 
     readonly property bool iconsOnly: cfg_page.cfg_iconOnly === 1
@@ -394,8 +391,6 @@ Item {
                                 readonly property bool isRunning: true
                                 readonly property bool isInactive: !mockTask.isActive && !mockTask.isHovered
 
-                                readonly property bool hasAudio: mockTask.playingAudio || mockTask.isMuted
-
                                 readonly property bool isGroupParent: mockTask.isGroup
 
                                 readonly property bool showText: !previewRoot.iconsOnly && (!previewRoot.isVertical || previewRoot.simulatedThickness > (Kirigami.Units.gridUnit * 4))
@@ -483,9 +478,7 @@ Item {
                                     }
 
                                     readonly property int mLeft: previewRoot.adjustMargin(true, parent.width, taskFrame.margins.left)
-                                    readonly property int mRight: previewRoot.adjustMargin(true, parent.width, taskFrame.margins.right)
                                     readonly property int mTop: previewRoot.adjustMargin(false, parent.height, taskFrame.margins.top)
-                                    readonly property int mBottom: previewRoot.adjustMargin(false, parent.height, taskFrame.margins.bottom)
 
                                     // Content area should be a square based on the smaller dimension (height for horizontal panel)
                                     readonly property real contentSize: (previewRoot.isVertical ? parent.width : parent.height) -
@@ -885,8 +878,6 @@ Item {
         implicitWidth: mainLayout.implicitWidth + Kirigami.Units.smallSpacing * 2
         implicitHeight: mainLayout.implicitHeight + Kirigami.Units.smallSpacing * 2
 
-        // Positioning logic based on actual zoomed icon bounds
-        readonly property real targetGrow: previewRoot.effectiveGrowSize / 2
         // Positioning logic based on actual visual icon bounds inside the button
         readonly property var targetTask: previewRoot.zoomedTaskItem
         readonly property var targetIcon: targetTask ? targetTask.taskIconItem : null

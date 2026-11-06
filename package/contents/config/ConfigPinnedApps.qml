@@ -26,7 +26,6 @@ ConfigPage {
     property bool appsLoaded: false
     property bool initialLoadDone: false
     property bool isLoadingApps: false
-    property int appsBatchSize: 15
     property var appMetadataCache: ({})
     property string currentSearchText: ""
 
@@ -59,6 +58,31 @@ ConfigPage {
         }
         return url;
     }
+
+    // "foo.desktop" for an "applications:foo.desktop" launcher URL, null for any other URL
+    function launcherSource(url) {
+        return url.startsWith("applications:") ? url.substring("applications:".length) : null;
+    }
+
+    // The built-in "preferred://" launchers
+    readonly property var preferredApps: ({
+        "preferred://browser": {
+            name: Wrappers.i18n("Default Web Browser"),
+            comment: Wrappers.i18n("Browse the Web"),
+            icon: "internet-web-browser"
+        },
+        "preferred://filemanager": {
+            name: Wrappers.i18n("Default File Manager"),
+            comment: Wrappers.i18n("Manage Files"),
+            icon: "system-file-manager"
+        },
+        "preferred://mail": {
+            name: Wrappers.i18n("Default Mail Client"),
+            comment: Wrappers.i18n("Send and Receive Email"),
+            icon: "internet-mail"
+        }
+    })
+
     // Initial app loading timer
     Timer {
         id: initialLoadTimer
@@ -146,10 +170,9 @@ ConfigPage {
         // Build set of pinned sources for O(1) lookup
         const pinnedSources = new Set();
         for (let i = 0; i < pinnedLaunchers.length; i++) {
-            let url = cleanUrl(pinnedLaunchers[i]);
-            if (url.startsWith("applications:")) {
-                const src = url.substring(13);
-                pinnedSources.add(src); // remove "applications:" prefix
+            const src = launcherSource(cleanUrl(pinnedLaunchers[i]));
+            if (src !== null) {
+                pinnedSources.add(src);
                 
                 // Explicitly add pinned apps to the processing list, even if not in appsSource.sources
                 // This ensures .local apps are requested
@@ -389,10 +412,7 @@ ConfigPage {
 
     function getCommentForUrl(url) {
         if (url.startsWith("preferred://")) {
-            if (url === "preferred://browser") return Wrappers.i18n("Browse the Web");
-            if (url === "preferred://filemanager") return Wrappers.i18n("Manage Files");
-            if (url === "preferred://mail") return Wrappers.i18n("Send and Receive Email");
-            return "";
+            return preferredApps[url] ? preferredApps[url].comment : "";
         }
 
         if (appMetadataCache[url]) {
@@ -403,10 +423,7 @@ ConfigPage {
 
     function getNameForUrl(url) {
         if (url.startsWith("preferred://")) {
-            if (url === "preferred://browser") return Wrappers.i18n("Default Web Browser");
-            if (url === "preferred://filemanager") return Wrappers.i18n("Default File Manager");
-            if (url === "preferred://mail") return Wrappers.i18n("Default Mail Client");
-            return Wrappers.i18n("Default Application");
+            return preferredApps[url] ? preferredApps[url].name : Wrappers.i18n("Default Application");
         }
 
         if (appMetadataCache[url]) {
@@ -414,26 +431,19 @@ ConfigPage {
         }
 
         // Fallback for uncached items
-        let appName = url;
-        if (appName.startsWith("applications:")) {
-            appName = appName.substring(13);
-            if (appName.endsWith(".desktop")) {
-                appName = appName.substring(0, appName.length - 8);
-            }
-            // Simple prettify fallback
-            appName = appName.split(/[-_.]/g).map(word => {
-               return word.charAt(0).toUpperCase() + word.slice(1);
-            }).join(" ");
+        const source = launcherSource(url);
+        if (source === null) {
+            return url;
         }
-        return appName;
+        // Simple prettify fallback
+        return source.replace(/\.desktop$/, "").split(/[-_.]/g).map(word => {
+            return word.charAt(0).toUpperCase() + word.slice(1);
+        }).join(" ");
     }
 
     function getIconForUrl(url) {
         if (url.startsWith("preferred://")) {
-            if (url === "preferred://browser") return "internet-web-browser";
-            if (url === "preferred://filemanager") return "system-file-manager";
-            if (url === "preferred://mail") return "internet-mail";
-            return "preferences-desktop-default-applications";
+            return preferredApps[url] ? preferredApps[url].icon : "preferences-desktop-default-applications";
         }
 
         if (appMetadataCache[url]) {
@@ -441,12 +451,9 @@ ConfigPage {
         }
 
         // Fallback
-        if (url.startsWith("applications:")) {
-            let appId = url.substring(13);
-             if (appId.endsWith(".desktop")) {
-                return appId.substring(0, appId.length - 8).toLowerCase();
-            }
-            return appId.toLowerCase();
+        const source = launcherSource(url);
+        if (source !== null) {
+            return source.replace(/\.desktop$/, "").toLowerCase();
         }
 
         return "application-x-executable";
