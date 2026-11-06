@@ -34,9 +34,6 @@ Item {
     readonly property bool dotMode: badgeDiam < 10
     readonly property real effectiveBadgeDiam: Math.max(6, badgeDiam)
 
-    // Audio badge is symbol-only (no background), needs larger area
-    readonly property real audioBadgeDiam: effectiveBadgeDiam * 1.4
-
     // ── Panel location ─────────────────────────────────────────────
     readonly property int location: Plasmoid.location
     readonly property var config: Plasmoid.configuration
@@ -52,9 +49,8 @@ Item {
 
     // ── Proportional Layout (Resolution Independent) ─────────────
     // Calculated based on a standard 44px panel ratio
-    // Audio badge: x = -2px, y = 2px
-    readonly property real audioBaseX: isVertPanel ? (boxW * 0.045) : (-boxW * 0.045)
-    readonly property real audioBaseY: isVertPanel ? (boxH * 0.1) : (boxH * 0.045)
+    // Audio badge: centered 15% from the left, the notification badge's mirror image
+    readonly property real audioCenterX: boxW * 0.15
 
     // Notification badge: center X = 36px (85%), y = 3px
     readonly property real notifBaseCX: isVertPanel ? (boxW * 0.5) : (boxW * 0.85)
@@ -87,13 +83,23 @@ Item {
     function clamp(val, lo, hi) { return Math.max(lo, Math.min(hi, val)); }
 
     // ── Audio Badge ────────────────────────────────────────────────
-    Badge {
+    // Symbolic speaker on a small round plate in the icon's top-left corner, mirroring the
+    // notification badge on the right; readable on light and dark themes alike
+    Item {
         id: audioBadge
-        readonly property real idealX: root.audioBaseX + root.diveDx
-        readonly property real idealY: root.audioBaseY + root.diveDy
+        readonly property bool muted: !!root.parentTask?.muted
+        readonly property real diam: root.iconsOnly
+            ? Math.round(Math.max(12, Math.min(Math.min(root.boxW, root.boxH) * 0.4, Kirigami.Units.iconSizes.smallMedium)))
+            : Math.round(Kirigami.Units.gridUnit * 0.85)
+        readonly property real idealX: root.audioCenterX - diam / 2 + root.diveDx
+        // Top edge like the horizontal notification badge (on vertical panels that one sits
+        // at the bottom, so the top-left corner is free there too)
+        readonly property real idealY: root.boxH * 0.068 + root.diveDy
 
         x: root.iconsOnly ? idealX : 0
         y: root.iconsOnly ? idealY : 0
+        width: diam
+        height: diam
 
         Behavior on x {
             enabled: root.iconsOnly
@@ -104,21 +110,26 @@ Item {
             NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
         }
 
-        height: root.iconsOnly ? root.audioBadgeDiam : Math.round(Kirigami.Units.gridUnit * 0.85)
-        visible: root.parentTask ? (root.config.indicateAudioStreams && (root.parentTask.playingAudio || root.parentTask.muted)) : false
+        visible: root.parentTask ? (root.config.indicateAudioStreams && (root.parentTask.playingAudio || audioBadge.muted)) : false
+        scale: audioMouseArea.containsMouse ? 1.15 : 1.0
+        Behavior on scale { NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic } }
 
-        textSource: "🕪"
-        mirrorText: true
-        overlaySource: root.parentTask?.muted ? "⦸" : ""
-        opacity: root.parentTask?.muted ? 0.7 : 1.0
-        hovered: !!audioMouseArea.containsMouse
-
-        textIconColor: Kirigami.Theme.textColor
-        showBackground: false
-        shadowEnabled: true
-        isRound: true
-        fontFactor: 0.85
-        isBold: false
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: Kirigami.Theme.backgroundColor
+            opacity: 0.9
+            border.width: 1
+            border.color: Qt.alpha(Kirigami.Theme.textColor, 0.2)
+        }
+        Kirigami.Icon {
+            anchors.centerIn: parent
+            width: Math.round(parent.width * 0.7)
+            height: width
+            source: audioBadge.muted ? "audio-volume-muted-symbolic" : "audio-volume-high-symbolic"
+            color: audioBadge.muted ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.textColor
+            isMask: true
+        }
 
         MouseArea {
             id: audioMouseArea
