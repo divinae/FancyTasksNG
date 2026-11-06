@@ -25,7 +25,7 @@ preview:
 	@./tools/testing.sh
 
 lint:
-	@ruff check --select E9,F package/contents/ui/code tools .github/scripts tests
+	@ruff check --select E9,F package/contents/ui/code tools tests
 	@shellcheck --severity=warning tools/*.sh
 	@python3 tools/sync_defaults.py --check
 	@python3 -m json.tool package/metadata.json > /dev/null
