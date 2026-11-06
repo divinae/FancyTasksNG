@@ -1040,7 +1040,7 @@ PlasmaExtras.Menu {
                 const pid = menu.get(menu.atm.AppPid);
                 DesktopActionsManager.killApp(pid, reply => {
                     if (!reply.startsWith("OK"))
-                        console.warn("FancyTasksNG: force quit failed:", reply);
+                        console.warn("Taskline: force quit failed:", reply);
                 });
             });
             forceQuitMenu.addMenuItem(confirm);

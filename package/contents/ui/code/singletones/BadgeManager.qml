@@ -44,7 +44,7 @@ Item {
         onNewData: (sourceName, data) => {
             // Being stopped together with Plasma also gives a non-zero exit code, but no stderr
             if (data["exit code"] && String(data.stderr || "").trim())
-                console.warn("FancyTasksNG: badge bridge failed:", data.stderr);
+                console.warn("Taskline: badge bridge failed:", data.stderr);
             disconnectSource(sourceName);
         }
     }
@@ -105,9 +105,9 @@ Item {
     // Listener for internal bridge signals
     DBus.SignalWatcher {
         id: bridgeWatcher
-        service: "io.github.daydve.fancytasksng.Bridge"
+        service: "io.github.divinae.taskline.Bridge"
         path: "/Bridge"
-        iface: "io.github.daydve.fancytasksng.BadgeUpdate"
+        iface: "io.github.divinae.taskline.BadgeUpdate"
         
         function dbusUpdateSignal(appId, count, progress, urgent) {
             root.updateData(String(appId), count, progress, !!urgent);

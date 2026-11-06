@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 source "${SCRIPT_DIR}/functions.sh"
 
 # Configuration
-PACKAGE_NAME="FancyTasksNG"
+PACKAGE_NAME="Taskline"
 ICON_NAME="icon" # Standardized KPackage icon name
 PACKAGE_DIR="$(readlink -f "${SCRIPT_DIR}/../package")"
 BUILD_DIR="${SCRIPT_DIR}/build"

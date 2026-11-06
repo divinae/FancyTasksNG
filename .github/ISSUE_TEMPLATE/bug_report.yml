@@ -30,9 +30,9 @@ body:
       required: true
 
   - type: input
-    id: fancytasks-version
+    id: taskline-version
     attributes:
-      label: Fancy Tasks NG version
+      label: Taskline version
       description: Found in the widget's "About" page in the settings.
       placeholder: "2.0.1"
     validations:
@@ -48,7 +48,7 @@ body:
         ```
         make diag
         ```
-        This writes a file `fancytasks-diag.txt` next to the Makefile, with
+        This writes a file `taskline-diag.txt` next to the Makefile, with
         personal data (username, home path, hostname, MAC addresses) masked.
         Drag that file here to attach it.
     validations:
@@ -113,7 +113,7 @@ body:
     attributes:
       label: Pre-flight checks
       options:
-        - label: I am on Plasma 6.5 or newer (Fancy Tasks NG does not support Plasma 5).
+        - label: I am on Plasma 6.5 or newer (Taskline does not support Plasma 5).
           required: true
         - label: I checked existing open and closed issues for duplicates.
           required: true

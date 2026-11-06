@@ -377,7 +377,7 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
     if not history_items or not favicons_db_path or not os.path.exists(favicons_db_path):
         return history_items
 
-    cache_dir = Path.home() / ".cache" / "fancytasksng" / "favicons"
+    cache_dir = Path.home() / ".cache" / "taskline" / "favicons"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     urls_to_query = []
@@ -745,7 +745,7 @@ class DesktopActionsService(dbus.service.Object):
     def __init__(self):
         try:
             self.bus = dbus.SessionBus()
-            self.bus_name = dbus.service.BusName('io.github.daydve.fancytasksng.DesktopActions', bus=self.bus, do_not_queue=True)
+            self.bus_name = dbus.service.BusName('io.github.divinae.taskline.DesktopActions', bus=self.bus, do_not_queue=True)
             dbus.service.Object.__init__(self, self.bus_name, '/DesktopActions')
             print("DesktopActionsService ready", flush=True)
         except dbus.exceptions.NameExistsException:
@@ -756,7 +756,7 @@ class DesktopActionsService(dbus.service.Object):
             print(f"DesktopActionsService error: {e}", file=sys.stderr)
             sys.exit(1)
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='sbii', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='sbii', out_signature='s')
     def Query(self, launcher_url, show_history, limit, app_pid):
         desktop_path = resolve_launcher_url(launcher_url)
         jump_list = get_jump_list_actions(desktop_path) if desktop_path else []
@@ -809,20 +809,20 @@ class DesktopActionsService(dbus.service.Object):
         }
         return json.dumps(data)
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='s', out_signature='')
     def ClearRecent(self, launcher_url):
         desktop_path = resolve_launcher_url(launcher_url)
         if desktop_path:
             clear_recent_documents(desktop_path)
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='s', out_signature='')
     def Execute(self, exec_cmd):
         try:
             subprocess.Popen(expand_exec(exec_cmd), start_new_session=True)
         except Exception as e:
             print(f"Execute error: {e}", file=sys.stderr)
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='s', out_signature='s')
     def ParentPids(self, pids_csv):
         """JSON {pid: parentPid} for comma-separated PIDs (QML can't read /proc).
 
@@ -831,12 +831,12 @@ class DesktopActionsService(dbus.service.Object):
         """
         return json.dumps(parent_pids(pids_csv))
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='as', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='as', out_signature='s')
     def WebAppLaunchers(self, launcher_urls):
         """JSON list of the given launcher URLs that are browser web apps (--app=URL)."""
         return json.dumps([str(u) for u in launcher_urls if web_app_host(resolve_launcher_url(str(u)))])
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='as', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='as', out_signature='s')
     def WebAppTracks(self, launcher_urls):
         """JSON {launcherUrl: {"track", "pid"}} for open browser web app windows (e.g. a
         Spotify app) whose site a playing browser MPRIS player is playing from."""
@@ -846,16 +846,16 @@ class DesktopActionsService(dbus.service.Object):
             players = []
         return json.dumps(web_app_tracks([str(u) for u in launcher_urls], players))
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='s', out_signature='i')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='s', out_signature='i')
     def AutostartState(self, launcher_url):
         """1 = starts at login, 0 = doesn't, -1 = not manageable (no desktop file)."""
         return autostart_state(resolve_launcher_url(launcher_url))
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='sb', out_signature='b')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='sb', out_signature='b')
     def SetAutostart(self, launcher_url, enabled):
         return set_autostart(resolve_launcher_url(launcher_url), bool(enabled))
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='i', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='i', out_signature='s')
     def KillApp(self, pid):
         """Force quit an app: SIGTERM now, SIGKILL after 3 s if it is still running."""
         # Never this helper, its parent (plasmashell) or init
@@ -879,7 +879,7 @@ class DesktopActionsService(dbus.service.Object):
         GLib.timeout_add(3000, kill_if_alive)
         return "OK"
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='i', out_signature='i')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='i', out_signature='i')
     def PanelVisibility(self, containment_id):
         """Visibility mode of a panel from plasmashellrc, or -1 if unknown.
 
@@ -888,7 +888,7 @@ class DesktopActionsService(dbus.service.Object):
         """
         return panel_visibility(containment_id)
 
-    @dbus.service.method('io.github.daydve.fancytasksng.Config', in_signature='ss', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.Config', in_signature='ss', out_signature='s')
     def ExportConfig(self, path, content):
         try:
             with open(path, 'w', encoding='utf-8') as f:
@@ -897,7 +897,7 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             return f"ERROR: {e}"
 
-    @dbus.service.method('io.github.daydve.fancytasksng.Config', in_signature='s', out_signature='s')
+    @dbus.service.method('io.github.divinae.taskline.Config', in_signature='s', out_signature='s')
     def ImportConfig(self, path):
         # "OK:" prefix so file contents can't be mistaken for an error or a D-Bus failure
         try:
@@ -906,7 +906,7 @@ class DesktopActionsService(dbus.service.Object):
         except Exception as e:
             return f"ERROR: {e}"
 
-    @dbus.service.method('io.github.daydve.fancytasksng.DesktopActions', in_signature='ss', out_signature='')
+    @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='ss', out_signature='')
     def OpenUrl(self, url, preferred_app):
         try:
             desktop_path = resolve_launcher_url(preferred_app)
@@ -983,7 +983,9 @@ def panel_visibility(containment_id, rc_path=None):
     return -1
 
 
-AUTOSTART_MARKER = "X-FancyTasksNG-Autostart"
+AUTOSTART_MARKER = "X-Taskline-Autostart"
+# Marker written by Fancy Tasks NG builds of this code; entries carrying it are ours too
+LEGACY_AUTOSTART_MARKERS = ("X-FancyTasksNG-Autostart",)
 
 
 def user_autostart_dir():
@@ -1168,7 +1170,8 @@ def set_autostart(desktop_path, enabled, autostart_dir=None, system_dirs=None, a
             if cp is None:
                 # Unreadable hand-made entry: leave it alone rather than overwrite it
                 return is_autostart(desktop_path, **kw)
-            own_entry = cp["Desktop Entry"].get(AUTOSTART_MARKER) == "true"
+            own_entry = any(cp["Desktop Entry"].get(marker) == "true"
+                            for marker in (AUTOSTART_MARKER,) + LEGACY_AUTOSTART_MARKERS)
             # A symlink's content lives elsewhere; edit a copy so the target is never touched
             user_text = user.read_text(encoding="utf-8")
         source_text = Path(desktop_path).read_text(encoding="utf-8")

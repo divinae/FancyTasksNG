@@ -29,9 +29,9 @@ class BridgeEmitter(dbus.service.Object):
         # We use a unique name for our bridge to avoid conflicts
         try:
             self.bus = dbus.SessionBus()
-            self.bus_name = dbus.service.BusName('io.github.daydve.fancytasksng.Bridge', bus=self.bus, do_not_queue=True)
+            self.bus_name = dbus.service.BusName('io.github.divinae.taskline.Bridge', bus=self.bus, do_not_queue=True)
             dbus.service.Object.__init__(self, self.bus_name, '/Bridge')
-            print("Bridge: Re-emitter is ready on io.github.daydve.fancytasksng.Bridge")
+            print("Bridge: Re-emitter is ready on io.github.divinae.taskline.Bridge")
         except dbus.exceptions.NameExistsException:
             # Another task manager instance already runs the bridge; its signals reach everyone.
             print("Bridge: already running")
@@ -40,7 +40,7 @@ class BridgeEmitter(dbus.service.Object):
             print(f"Bridge error: {e}", file=sys.stderr)
             sys.exit(1)
 
-    @dbus.service.signal('io.github.daydve.fancytasksng.BadgeUpdate', signature='sidb')
+    @dbus.service.signal('io.github.divinae.taskline.BadgeUpdate', signature='sidb')
     def UpdateSignal(self, appId, count, progress, urgent):
         # This signal will be sent to the bus
         pass

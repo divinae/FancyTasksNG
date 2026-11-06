@@ -31,8 +31,8 @@ jobs:
         id: asset
         run: |
           VERSION=$(jq -r '.KPlugin.Version' package/metadata.json)
-          ASSET_NAME="FancyTasksNG.plasmoid"
-          mv release/FancyTasksNG.plasmoid "$ASSET_NAME"
+          ASSET_NAME="Taskline.plasmoid"
+          mv release/Taskline.plasmoid "$ASSET_NAME"
           echo "asset_path=$ASSET_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           awk -v ver="[${VERSION}]" '/^## / { if (index($0, ver) > 0) { flag = 1; next } else if (flag) { flag = 0 } } flag' CHANGELOG.md > release_notes.txt

@@ -28,7 +28,7 @@ Item {
     property string helperError: ""
 
     // Bus name of the helper; also the name of its main interface
-    readonly property string _service: "io.github.daydve.fancytasksng.DesktopActions"
+    readonly property string _service: "io.github.divinae.taskline.DesktopActions"
 
     function _shellQuote(text) {
         return "'" + String(text).replace(/'/g, "'\\''") + "'";
@@ -50,7 +50,7 @@ Item {
             if (exitCode && String(data.stderr || "").trim()) {
                 const lines = String(data.stderr || "").trim().split("\n");
                 root.helperError = lines[lines.length - 1] || ("exit code " + exitCode);
-                console.warn("FancyTasksNG: desktop actions helper failed:", data.stderr);
+                console.warn("Taskline: desktop actions helper failed:", data.stderr);
             }
             disconnectSource(sourceName);
         }
@@ -186,11 +186,11 @@ Item {
     }
 
     function exportConfig(path, content, callback) {
-        _call("io.github.daydve.fancytasksng.Config", "ExportConfig", [String(path || ""), String(content || "")], "(ss)", callback);
+        _call("io.github.divinae.taskline.Config", "ExportConfig", [String(path || ""), String(content || "")], "(ss)", callback);
     }
 
     function importConfig(path, callback) {
-        _call("io.github.daydve.fancytasksng.Config", "ImportConfig", [String(path || "")], "(s)", callback);
+        _call("io.github.divinae.taskline.Config", "ImportConfig", [String(path || "")], "(s)", callback);
     }
 
     // Visibility mode of the panel with this containment id (see desktop_actions.panel_visibility)
@@ -224,7 +224,7 @@ Item {
     function setAutostart(launcherUrl, enabled) {
         _call(root._service, "SetAutostart", [launcherUrl, !!enabled], "(sb)", reply => {
             if (reply !== "true" && reply !== "false") {
-                console.warn("FancyTasksNG: changing autostart failed:", reply);
+                console.warn("Taskline: changing autostart failed:", reply);
                 _setAutostartState(launcherUrl, -2);
             } else {
                 _setAutostartState(launcherUrl, reply === "true" ? 1 : 0);

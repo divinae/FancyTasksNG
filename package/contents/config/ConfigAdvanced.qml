@@ -23,7 +23,7 @@ ConfigPage {
             Layout.fillWidth: true
             visible: DesktopActionsManager.helperError !== ""
             type: Kirigami.MessageType.Warning
-            text: Wrappers.i18n("The FancyTasksNG helper could not start, so jump lists, recent documents and configuration export/import are unavailable. It needs python3 with the dbus-python and PyGObject modules. Error: %1", DesktopActionsManager.helperError)
+            text: Wrappers.i18n("The Taskline helper could not start, so jump lists, recent documents and configuration export/import are unavailable. It needs python3 with the dbus-python and PyGObject modules. Error: %1", DesktopActionsManager.helperError)
         }
 
         Kirigami.InlineMessage {
@@ -275,7 +275,7 @@ ConfigPage {
 
         Labs.FileDialog {
             id: exportFileDialog
-            title: Wrappers.i18n("Export FancyTasksNG Configuration")
+            title: Wrappers.i18n("Export Taskline Configuration")
             fileMode: Labs.FileDialog.SaveFile
             nameFilters: [Wrappers.i18n("JSON files (*.json)")]
             defaultSuffix: "json"
@@ -284,7 +284,7 @@ ConfigPage {
 
         Labs.FileDialog {
             id: importFileDialog
-            title: Wrappers.i18n("Import FancyTasksNG Configuration")
+            title: Wrappers.i18n("Import Taskline Configuration")
             fileMode: Labs.FileDialog.OpenFile
             nameFilters: [Wrappers.i18n("JSON files (*.json)")]
             onAccepted: advancedPage.importConfig(importFileDialog.file)
@@ -292,14 +292,14 @@ ConfigPage {
 
     }
 
-    readonly property string configAppId: "io.github.daydve.fancytasksng"
+    readonly property string configAppId: "io.github.divinae.taskline"
 
     function toLocalPath(fileUrl) {
         return decodeURIComponent(fileUrl.toString().replace(/^file:\/\//, ""));
     }
 
     function helperUnavailableText() {
-        return Wrappers.i18n("The FancyTasksNG helper is not running. It needs python3 with the dbus-python and PyGObject modules.");
+        return Wrappers.i18n("The Taskline helper is not running. It needs python3 with the dbus-python and PyGObject modules.");
     }
 
     function showConfigIoStatus(text, isError) {
@@ -349,14 +349,16 @@ ConfigPage {
             try {
                 advancedPage.applyImportedSettings(JSON.parse(result.slice("OK:".length)));
             } catch (e) {
-                advancedPage.showConfigIoStatus(Wrappers.i18n("This file is not a valid FancyTasksNG configuration."), true);
+                advancedPage.showConfigIoStatus(Wrappers.i18n("This file is not a valid Taskline configuration."), true);
             }
         });
     }
 
     function applyImportedSettings(parsed) {
-        if (!parsed || parsed.app !== advancedPage.configAppId || typeof parsed.settings !== "object") {
-            advancedPage.showConfigIoStatus(Wrappers.i18n("This file is not a valid FancyTasksNG configuration."), true);
+        // Also accept exports from Fancy Tasks NG, which this widget is a fork of
+        const knownApps = [advancedPage.configAppId, "io.github.daydve.fancytasksng"];
+        if (!parsed || knownApps.indexOf(parsed.app) === -1 || typeof parsed.settings !== "object") {
+            advancedPage.showConfigIoStatus(Wrappers.i18n("This file is not a valid Taskline configuration."), true);
             return;
         }
         const keys = Object.keys(parsed.settings);

@@ -3,6 +3,9 @@
     "KPlugin": {
         "Authors": [
             {
+                "Name": "Jakub Lipinski"
+            },
+            {
                 "Email": "daydve@smbit.pro",
                 "Name": "Vitaliy Elin"
             },
@@ -20,15 +23,15 @@
             }
         ],
         "Category": "Windows and Tasks",
-        "Description": "More modern taskbar-style window switcher displaying icons and text, with some improvements and customization options",
+        "Description": "Taskbar-style window switcher with live window previews, smart media controls, badges and attention signals. Fork of Fancy Tasks NG.",
         "EnabledByDefault": true,
         "Icon": "preferences-system-windows-effect-highlightwindow",
-        "Id": "io.github.daydve.fancytasksng",
+        "Id": "io.github.divinae.taskline",
         "License": "GPL-3.0+",
-        "Name": "Fancy Tasks NG",
-        "Version": "2.2.0",
-        "Website": "https://github.com/daydve/FancyTasksNG",
-        "BugTrackerUrl": "https://github.com/daydve/FancyTasksNG/issues"
+        "Name": "Taskline",
+        "Version": "1.0.0",
+        "Website": "https://github.com/divinae/Taskline",
+        "BugTrackerUrl": "https://github.com/divinae/Taskline/issues"
     },
     "X-Plasma-Provides": [
         "org.kde.plasma.multitasking"

@@ -42,8 +42,8 @@ jobs:
         id: asset
         run: |
           VERSION=$(jq -r '.KPlugin.Version' package/metadata.json)
-          ASSET_NAME="FancyTasksNG.plasmoid"
-          mv release/FancyTasksNG.plasmoid "$ASSET_NAME"
+          ASSET_NAME="Taskline.plasmoid"
+          mv release/Taskline.plasmoid "$ASSET_NAME"
           echo "asset_path=$ASSET_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -76,5 +76,5 @@ jobs:
           curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d parse_mode="Markdown" \
-            -d text="⚠️ *FancyTasksNG*: KDE Store publish failed for \`${{ inputs.tag || github.ref_name }}\`.
+            -d text="⚠️ *Taskline*: KDE Store publish failed for \`${{ inputs.tag || github.ref_name }}\`.
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

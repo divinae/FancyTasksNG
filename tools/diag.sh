@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2025-2026 Vitaliy Elin <daydve@smbit.pro>
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Collects the information needed to diagnose Fancy Tasks NG issues into a
+# Collects the information needed to diagnose Taskline issues into a
 # plain-text report with personal data (home path, username, hostname) masked.
 #
 # Self-contained on purpose: the bug report template allows downloading just
@@ -13,16 +13,16 @@
 
 set -uo pipefail
 
-PLUGIN_ID="io.github.daydve.fancytasksng"
+PLUGIN_ID="io.github.divinae.taskline"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 REPO_ROOT="$(readlink -f "${SCRIPT_DIR}/..")"
 if [ -f "${REPO_ROOT}/package/metadata.json" ]; then
     SOURCE_PKG="${REPO_ROOT}/package"
-    DEFAULT_OUT="${REPO_ROOT}/fancytasks-diag.txt"
+    DEFAULT_OUT="${REPO_ROOT}/taskline-diag.txt"
 else
     SOURCE_PKG=""
-    DEFAULT_OUT="${PWD}/fancytasks-diag.txt"
+    DEFAULT_OUT="${PWD}/taskline-diag.txt"
 fi
 
 OUT="$(readlink -f "${1:-${DEFAULT_OUT}}")"
@@ -110,7 +110,7 @@ done
 if [ -z "${EFFECTIVE_PKG}" ]; then
     emit "(not installed in any of: ${DATA_DIRS[*]})"
     SUM[installed_version]="(not installed)"
-    warn "Fancy Tasks NG is not installed for this user."
+    warn "Taskline is not installed for this user."
 fi
 
 # --- Source checkout (only when run from a clone) ---------------------------
@@ -252,10 +252,10 @@ else
     warn "python3 is not installed - badges, progress and desktop actions will not work."
 fi
 for name in Bridge DesktopActions; do
-    if have busctl && busctl --user status "io.github.daydve.fancytasksng.${name}" &> /dev/null; then
-        emit "D-Bus name io.github.daydve.fancytasksng.${name}: registered"
+    if have busctl && busctl --user status "io.github.divinae.taskline.${name}" &> /dev/null; then
+        emit "D-Bus name io.github.divinae.taskline.${name}: registered"
     else
-        emit "D-Bus name io.github.daydve.fancytasksng.${name}: not registered"
+        emit "D-Bus name io.github.divinae.taskline.${name}: not registered"
     fi
 done
 
@@ -292,7 +292,7 @@ fi
 # --- Per-instance: panel + widget settings ----------------------------------
 # Read straight from the KConfig files rather than via any runtime API - if
 # plasmashell itself is what's broken, this still has to work.
-section "Fancy Tasks NG instances"
+section "Taskline instances"
 if [ -f "${APPSRC}" ]; then
     mapfile -t INSTANCES < <(awk -v id="${PLUGIN_ID}" '
         /^\[Containments\]\[[0-9]+\]\[Applets\]\[[0-9]+\]$/ {
@@ -306,7 +306,7 @@ if [ -f "${APPSRC}" ]; then
     SUM[instances]="${#INSTANCES[@]}"
     if [ "${#INSTANCES[@]}" -eq 0 ]; then
         emit "(no instance found in the layout)"
-        warn "No Fancy Tasks NG widget is placed on any panel."
+        warn "No Taskline widget is placed on any panel."
     fi
     for inst in "${INSTANCES[@]}"; do
         cont="${inst%/*}"
@@ -340,10 +340,10 @@ fi
 # --- Logs --------------------------------------------------------------------
 # Only lines from this boot that concern the plasmoid: the unfiltered tail is
 # dominated by other widgets and is useless here.
-section "plasmashell log lines about Fancy Tasks NG (this boot, last 150)"
+section "plasmashell log lines about Taskline (this boot, last 150)"
 if have journalctl; then
     LOG="$(journalctl --user -b --no-pager -o short-iso _COMM=plasmashell 2> /dev/null \
-        | grep -iE 'fancytasks|io\.github\.daydve|unity_bridge|desktop_actions')"
+        | grep -iE 'taskline|io\.github\.divinae|unity_bridge|desktop_actions')"
     if [ -n "${LOG}" ]; then
         printf '%s\n' "${LOG}" | tail -150 >> "${BUF}"
     else
@@ -364,7 +364,7 @@ fi
 
 # --- Assemble: warnings + summary first, details after ----------------------
 {
-    echo "Fancy Tasks NG - diagnostic report"
+    echo "Taskline - diagnostic report"
     echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
     echo ""
     if [ "${#WARNINGS[@]}" -gt 0 ]; then

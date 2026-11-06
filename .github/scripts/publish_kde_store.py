@@ -40,7 +40,7 @@ import requests
 DEFAULT_PRODUCT_ID = "2350434"
 OCS_READ_API = "https://api.opendesktop.org/ocs/v1/content/data"
 DEFAULT_METADATA_PATH = "package/metadata.json"
-DEFAULT_ASSET_NAME = "FancyTasksNG.plasmoid"
+DEFAULT_ASSET_NAME = "Taskline.plasmoid"
 KDE_STORE_BASE = "https://store.kde.org"
 OPENDESKTOP_LOGIN_URL = "https://www.opendesktop.org/login/"
 OPENDESKTOP_OAUTH_LOGIN = "https://store.kde.org/oauth/login/"
@@ -644,7 +644,7 @@ def update_product_metadata(session, product_id, edit_info, description, version
 
     form_data = {
         'project_id': product_id,
-        'title': edit_info['title'] or 'Fancy Tasks NG',
+        'title': edit_info['title'] or 'Taskline',
         'project_category_id': edit_info['project_category_id'] or '102',
         'description': description,
         'version': version,

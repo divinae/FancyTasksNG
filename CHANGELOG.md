@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Renamed to Taskline** (widget ID `io.github.divinae.taskline`, D-Bus names `io.github.divinae.taskline.*`), a fork of Fancy Tasks NG 2.2.0 with selected 2.3.0 changes ported. It can be installed next to Fancy Tasks NG without conflicts; settings exported from Fancy Tasks NG can be imported.
+
 ### Added
 - **From upstream 2.3.0:** task order restored after a Plasma restart, optional button width fitted to the title, optional cursor-following glow, a more detailed `make diag` report.
 - **Calmer Attention:** Like the Windows taskbar, an app asking for attention bounces for the first 30 seconds (panel icon and screen-edge peek), then only shows a steady colored mark, with one reminder bounce every 5 minutes until it gets attention.
