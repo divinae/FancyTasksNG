@@ -8,6 +8,7 @@ pragma Singleton
 import QtQuick
 import org.kde.plasma.workspace.dbus as DBus
 import org.kde.plasma.plasma5support as Plasma5Support
+import org.kde.plasma.private.mpris as Mpris
 
 /**
  * DesktopActionsManager — provides desktop file jump list actions
@@ -241,6 +242,32 @@ Item {
                 callback({});
             }
         });
+    }
+
+    // VLC registers its MPRIS player before it has loaded anything, with CanPlay false, and
+    // never announces the change; Plasma keeps the stale value and its Play() refuses to do
+    // anything, so a player paused from the tooltip could never be resumed. A paused player
+    // can obviously play: ask it directly. (Ported from upstream 6ce0c43.)
+    function canPlay(player): bool {
+        return !!player && (player.canPlay || (player.canControl && player.playbackStatus === Mpris.PlaybackStatus.Paused));
+    }
+
+    function play(player): void {
+        if (!player)
+            return;
+        if (player.canPlay) {
+            player.Play();
+            return;
+        }
+        // Plasma names a player after its bus name without the MPRIS prefix
+        if (canPlay(player) && player.objectName) {
+            DBus.SessionBus.asyncCall({
+                "service": "org.mpris.MediaPlayer2." + player.objectName,
+                "path": "/org/mpris/MediaPlayer2",
+                "iface": "org.mpris.MediaPlayer2.Player",
+                "member": "Play"
+            });
+        }
     }
 
     function killApp(pid, callback) {

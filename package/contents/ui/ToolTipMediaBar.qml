@@ -17,6 +17,10 @@ Item {
 
     required property var mediaController
 
+    // Emitted when the track title is clicked: this row sits below the thumbnail, outside
+    // its activate-on-click area, so the title activates the window itself
+    signal activateRequested()
+
     width: parent.width
     height: controlsRow.height + (canSeek ? seekSlider.implicitHeight : 0)
 
@@ -70,12 +74,12 @@ Item {
                 icon.height: Kirigami.Units.iconSizes.small
 
                 readonly property bool isPlaying: barRoot.player ? barRoot.player.playbackStatus === Mpris.PlaybackStatus.Playing : false
-                enabled: barRoot.player ? (isPlaying ? barRoot.player.canPause : barRoot.player.canPlay) : false
+                enabled: barRoot.player ? (isPlaying ? barRoot.player.canPause : DesktopActionsManager.canPlay(barRoot.player)) : false
                 icon.name: isPlaying ? "media-playback-pause" : "media-playback-start"
                 onClicked: {
                     if (barRoot.player) {
                         if (!isPlaying) {
-                            barRoot.player.Play();
+                            DesktopActionsManager.play(barRoot.player);
                         } else {
                             barRoot.player.Pause();
                         }
@@ -104,6 +108,13 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredHeight: songText.height
             implicitWidth: songText.implicitWidth
+
+            // songTextWrapper declines presses (it only scrolls on hover), so this one
+            // receives clicks on the title
+            MouseArea {
+                anchors.fill: parent
+                onClicked: barRoot.activateRequested()
+            }
 
             // Fade the right edge to transparent so users know the text continues.
             // A mask instead of a background-colored gradient keeps it correct on a translucent theme frame.
