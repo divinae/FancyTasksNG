@@ -108,14 +108,51 @@ Item {
                 let rws = (tasksRoot.taskList && tasksRoot.taskList.rows > 0) ? tasksRoot.taskList.rows : (task.config.maxStripes || 1);
                 return (tasksRoot.height / rws) + LayoutMetrics.horizontalMargins();
             }
-            return LayoutMetrics.preferredMaxWidth();
+            return task.classicButtonWidth;
         }
+    }
+
+    // Every button gets the full max width, like the classic taskbar, unless
+    // "fit to title" is on: then icon + title, kept within [min, max].
+    readonly property real classicButtonWidth: {
+        const maxWidth = LayoutMetrics.preferredMaxWidth();
+        // An elided title's widest line is shorter than the room it had, so
+        // fitting to it would cut the title off before the max width.
+        if (!task.config.fitButtonToText || titleMeasure.truncated)
+            return maxWidth;
+        const contentWidth = task.labelChromeWidth + Math.ceil(titleMeasure.contentWidth);
+        return Math.min(maxWidth, Math.max(task.config.minFitButtonLength, contentWidth));
+    }
+    // Mirrors the icon-to-title gap after a fitted title: the frame's right
+    // margin scales with iconSpacing and is 0 when that's 0, which would leave
+    // the title touching the button's edge. Reserved in the label itself, not
+    // just added to the width, so it survives the clamp to the max width.
+    readonly property real trailingLabelGap: task.config.fitButtonToText ? LayoutMetrics.labelMargin : 0
+    readonly property real labelChromeWidth: LayoutMetrics.leftMargin() + taskIconBox.height + LayoutMetrics.labelMargin + LayoutMetrics.rightMargin() + task.trailingLabelGap
+
+    // Lays the title out exactly like the label would at the max width
+    // (same wrapping, line limit and height), so contentWidth is the widest
+    // line after wrapping - a two-line title fits to its longer line, not to
+    // its single-line length. Kept separate from the label, which only gets
+    // its text once it's wide enough to be shown. Narrowing the label down
+    // to that width doesn't change where the lines break.
+    Text {
+        id: titleMeasure
+        visible: false
+        width: Math.max(0, LayoutMetrics.preferredMaxWidth() - task.labelChromeWidth)
+        height: label.height
+        font: label.font
+        text: task.config.fitButtonToText && task.model ? (task.model.display || "") : ""
+        textFormat: Text.PlainText
+        wrapMode: label.wrapMode
+        maximumLineCount: label.maximumLineCount
+        elide: Text.ElideRight
     }
 
     Layout.fillWidth: true
     Layout.fillHeight: !task.inPopup
     Layout.maximumWidth: (!tasksRoot || tasksRoot.vertical) ?
-        -1 : ((task.model?.IsLauncher && !tasksRoot.iconsOnly) ? (tasksRoot.height / tasksRoot.taskList.rows) + LayoutMetrics.horizontalMargins() : LayoutMetrics.preferredMaxWidth())
+        -1 : ((task.model?.IsLauncher && !tasksRoot.iconsOnly) ? (tasksRoot.height / tasksRoot.taskList.rows) + LayoutMetrics.horizontalMargins() : (tasksRoot.iconsOnly ? LayoutMetrics.preferredMaxWidth() : task.classicButtonWidth))
     Layout.maximumHeight: (!tasksRoot || !tasksRoot.vertical) ?
         -1 : ((task.model?.IsLauncher && !tasksRoot.iconsOnly) ? (tasksRoot.width / tasksRoot.taskList.columns) + LayoutMetrics.verticalMargins() : LayoutMetrics.preferredMaxHeight())
 
@@ -374,6 +411,16 @@ Item {
         }
         if (oldX < 0) {
             oldX = x;
+            oldXIndex = index;
+            return;
+        }
+        // With fitted widths a button also moves whenever a title before it
+        // changes length; sliding then would make it overlap that neighbor
+        // mid-animation on every title update, so only slide on a reorder.
+        const reordered = index !== oldXIndex;
+        oldXIndex = index;
+        if (!reordered && task.config.fitButtonToText && !task.tasksRoot.iconsOnly) {
+            oldX = x;
             return;
         }
         moveAnim.x = oldX - x + translateTransform.x;
@@ -396,6 +443,7 @@ Item {
     }
 
     property real oldX: -1
+    property int oldXIndex: -1
     property real oldY: -1
     SequentialAnimation {
         id: moveAnim
@@ -957,7 +1005,7 @@ Item {
             fill: parent
             leftMargin: LayoutMetrics.leftMargin() + taskIconBox.width + LayoutMetrics.labelMargin
             topMargin: LayoutMetrics.topMargin()
-            rightMargin: LayoutMetrics.rightMargin()
+            rightMargin: LayoutMetrics.rightMargin() + task.trailingLabelGap
             bottomMargin: LayoutMetrics.bottomMargin()
         }
 

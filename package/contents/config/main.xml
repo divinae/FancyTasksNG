@@ -119,6 +119,16 @@
       <min>40</min>
       <max>1000</max>
     </entry>
+    <entry name="fitButtonToText" type="Bool">
+      <label>Whether a task button is as wide as its icon and title (between minFitButtonLength and maxButtonLength) instead of always maxButtonLength.</label>
+      <default>false</default>
+    </entry>
+    <entry name="minFitButtonLength" type="Int">
+      <label>The min length of a task button when fitButtonToText is enabled.</label>
+      <default>80</default>
+      <min>40</min>
+      <max>1000</max>
+    </entry>
     <entry name="forceStripes" type="Bool">
       <label
             >Whether to try and always layout task buttons in as many rows/columns as set via maxStripes.</label>

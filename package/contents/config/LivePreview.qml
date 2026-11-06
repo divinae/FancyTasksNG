@@ -347,7 +347,14 @@ Item {
                                     if (mockTask.isHovered) previewRoot.zoomedTaskItem = mockTask;
                                 }
 
-                                readonly property int maxW: previewRoot.cfg_page.cfg_maxButtonLength
+                                readonly property int maxW: {
+                                    const maxWidth = previewRoot.cfg_page.cfg_maxButtonLength;
+                                    if (!previewRoot.cfg_page.cfg_fitButtonToText)
+                                        return maxWidth;
+                                    const contentWidth = previewIconBox.x + previewIconBox.width
+                                        + Kirigami.Units.smallSpacing * 2 + Math.ceil(label.implicitWidth);
+                                    return Math.min(maxWidth, Math.max(previewRoot.cfg_page.cfg_minFitButtonLength, contentWidth));
+                                }
 
                                 Layout.preferredWidth: mockTask.showText ? maxW : previewRoot.simulatedMaxWidth
                                 Layout.preferredHeight: previewRoot.laneHeight + (previewRoot.isVertical ? (previewRoot.verticalMargins() - (taskFrame.margins.top + taskFrame.margins.bottom)) : 0)

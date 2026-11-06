@@ -52,6 +52,10 @@ Kirigami.Page {
     property int cfg_maxStripesDefault: 1
     property int cfg_maxButtonLength: 0
     property int cfg_maxButtonLengthDefault: 200
+    property bool cfg_fitButtonToText: false
+    property bool cfg_fitButtonToTextDefault: false
+    property int cfg_minFitButtonLength: 0
+    property int cfg_minFitButtonLengthDefault: 80
     property bool cfg_forceStripes: false
     property bool cfg_forceStripesDefault: false
     property bool cfg_tooltipRecentFirst: false
