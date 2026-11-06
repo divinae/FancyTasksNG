@@ -1,125 +1,119 @@
-<h1 align="center">Taskline</h1>
-<p align="center">
-  <img src="package/icon.svg" alt="Taskline"/>
-</p>
-<p align="center">
-  <strong>A feature-rich task manager for KDE Plasma 6, forked from Fancy Tasks NG.</strong>
-</p>
-<p align="center">
-  <a href="https://github.com/divinae/Taskline/releases/latest">
-    <img src="https://img.shields.io/github/v/release/divinae/Taskline?style=flat-square&label=Latest%20Release&color=6c63ff" alt="Latest Release"/>
-  </a>
-  <img src="https://img.shields.io/badge/Plasma-6.5%2B-blue?style=flat-square&logo=kde&logoColor=white" alt="Plasma 6.5+"/>
-  <img src="https://img.shields.io/badge/Qt-6-green?style=flat-square&logo=qt&logoColor=white" alt="Qt6"/>
-  <img src="https://img.shields.io/badge/License-GPL--3.0-orange?style=flat-square" alt="License"/>
-</p>
+# Taskline
 
----
+A task manager for the Plasma 6 panel: icons or labeled buttons for your pinned apps and open
+windows, with live window previews, media controls on the window that's actually playing,
+unread badges, and attention signals that tell you which window wants you without getting in
+your way.
 
-![Taskline Screenshot](media/screenshots.png)
+Taskline is a fork of [Fancy Tasks NG](https://github.com/daydve/FancyTasksNG) by Vitaliy Elin.
+It has its own name and widget ID (`io.github.divinae.taskline`), so the two can be installed
+side by side.
 
----
+## What it does
 
-## What is this?
+### On the panel
 
-**Taskline** is an alternative task manager for KDE Plasma 6, a fork of [Fancy Tasks NG](https://github.com/daydve/FancyTasksNG) by Vitaliy Elin. It uses its own name and widget ID (`io.github.divinae.taskline`), so it can be installed next to Fancy Tasks NG without conflicts.
+- **Pinned apps and windows** in one row, as icons or labeled buttons, aligned to the start or
+  the center of the panel. Windows of one app can be grouped, always or only when the panel runs
+  out of room. Pinned apps stay in their slots, also after Plasma restarts.
+- **Indicators** under each task: lines or dots, one per window, in the accent color, the icon's
+  color, the theme's text color (dark on light themes, light on dark ones) or a color of your
+  choice, with an optional outline. The focused window's segment can be longer and its opacity
+  set on its own; a minimized window's segment is greyed out.
+- **Badges:** unread counts from apps that send notifications, or that report a count
+  themselves (Unity LauncherEntry), the number of open windows, and a progress bar for downloads
+  and copies, in the theme's accent color.
+- **Audio:** a speaker on an app that's playing; scroll on it for its volume, click it to mute.
+- **Launch feedback:** an app's icon bounces while it starts, as in the macOS Dock.
 
-On top of Fancy Tasks NG it adds, among others: native Plasma tooltips with larger, smoothly scaled and rounded thumbnails sized to each window, titles that highlight what differs between windows, media controls shown on the window that actually plays (including browser web apps such as a Spotify app), unread-notification badges, Windows-style attention signals (a short bounce, then a steady mark, plus a bouncing icon at the screen edge for auto-hidden panels), Force Quit, Open at Login, window counts and a configurable tooltip delay. See the [CHANGELOG](CHANGELOG.md).
+### Tooltips
 
-Fancy Tasks NG itself builds upon the native task manager concepts by offering deeper customization and additional visual features like animated activity indicators, smart notification badges on app icons, volume scroll controls, dynamic hover zoom, centered alignment, and rich tooltips.
+Hover a task for a tooltip in the Plasma theme's own frame, with:
 
-## History of Fancy Tasks NG (by its author, Vitaliy Elin)
+- **Previews** of its windows, sized to each window's shape when there are several, smoothly
+  scaled and with rounded corners. Minimized windows are dimmed and marked.
+- **Titles under the previews.** In a group, the part that differs between the windows is in
+  bold and what they share is dimmed: **build** : bash, **docs** : bash.
+- **Media controls** (play, pause, skip, seek, volume) on the window that's actually playing,
+  including browser web apps: music playing in a Spotify app run by Vivaldi shows on the Spotify
+  window, not on the browser's main window.
+- A close button on hover, and optionally the most recently used window first. The delay before
+  the tooltip opens is up to you.
 
-I used the original [FancyTasks](https://github.com/alexankitty/FancyTasks) by [alexankitty](https://github.com/alexankitty) for many years. When Plasma 6 came out, I thought the project was dead. Later, I found a fork ([FancyTasksPlus](https://github.com/SushiTrashXD/FancyTasksPlus) by [SushiTrashXD](https://github.com/SushiTrashXD)) that attempted to port it to Plasma 6. 
+### Attention
 
-Unfortunately, as Plasma continued to evolve (especially after 6.4), the code started breaking and the widget stopped working entirely. I temporarily went back to the standard Plasma task manager, but I really missed the features I was used to. 
+When a window asks for attention, as on the Windows taskbar: its icon bounces and its indicator
+and button turn the attention color for 30 seconds, then only a steady colored mark stays, with
+one reminder bounce every 5 minutes. A new message starts it again. In a group, only the window
+that asked is marked, in the indicator and in the tooltip.
 
-So, I decided to fork the project for myself just to restore basic compatibility with modern Plasma. After getting it to work, I started making a few small tweaks here and there. What started as a simple compatibility fix quickly grew into a major overhaul. I ended up completely rewriting large chunks of the codebase, removing legacy code, and adding a bunch of new features I had always wanted. Thus, **Fancy Tasks NG** (Next Generation) was born.
+With an auto-hidden panel, Taskline can leave the panel hidden and let just that app's icon
+bounce out of the screen edge where it sits (Settings › Advanced). Click it to go to the window.
 
-## Overview of Capabilities
+### The context menu
 
-Taskline is a standalone task manager widget that includes the following features:
-- **Alignment:** Built-in option to align tasks to the center of the panel.
-- **Background Data Integration:** A custom D-Bus bridge enables the display of unread message badges and task progress bars directly on pinned icons, even if the application has no active windows.
-- **Interaction Shortcuts:** Support for adjusting the volume of individual applications via mouse wheel scroll over their icons.
-- **Configuration Preview:** A Live Preview component in the settings window displays changes in real time before they are applied.
-- **Visual Effects:** Configurable options for icon hover zoom animations, custom indicator styles, and particle effects when closing windows.
+Besides the usual window and pinning actions: the app's own actions (jump list), recent
+documents and folders, recent pages for browsers, Places for file managers, **Close Other
+Windows**, **Open at Login**, and **Force Quit** for an app that stopped responding.
 
-For a complete list of features and version history, refer to the [CHANGELOG](CHANGELOG.md).
+### Keys and mouse
+
+Meta+1…9 activate the task in that position, Meta+Shift+1…9 open a new window of it.
+Ctrl+Shift+arrows move the focused task. Scroll, middle-click and Ctrl+scroll actions can be
+set in the settings. Drop files on a task to open them with that app.
 
 ## Requirements
 
-- **KDE Plasma 6.5** (or newer)
-- **python3** with the **dbus-python** and **PyGObject** modules, for jump lists, recent documents, browser history, notification badges and configuration export/import (packages: `python-dbus` and `python-gobject` on Arch, `python3-dbus` and `python3-gi` on Debian/Ubuntu, `python3-dbus` and `python3-gobject` on Fedora)
+- Plasma 6.5 or later.
+- `python3` with **dbus-python** and **PyGObject** (Arch: `python-dbus`, `python-gobject`;
+  Debian/Ubuntu: `python3-dbus`, `python3-gi`; Fedora: `python3-dbus`, `python3-gobject`).
+  Taskline runs two small helpers with them for jump lists, recent documents, badges, browser
+  history and config export/import. Without them, those features are missing and the Advanced
+  settings page says why.
+- For media in browsers: the Plasma Browser Integration extension.
 
-## How to install
+## Install
 
-### From source (Highly Recommended)
-This is the best way to ensure you have the absolute latest version:
-
-```bash
-# 1. Grab the code
+```sh
 git clone https://github.com/divinae/Taskline.git
 cd Taskline
-
-# 2. Build and install (this handles everything for you)
 make install
 ```
-Once it's done, right-click your panel, select **Add Widgets**, and look for **"Taskline"**.
 
-### From a pre-built package
-If you prefer not to use `make`, you can download the latest `Taskline.plasmoid` file from the [Releases page](https://github.com/divinae/Taskline/releases) and install it from the terminal:
+Then right-click the panel, **Add Widgets…**, and add **Taskline**. Coming from Fancy Tasks NG?
+Export your settings there (Settings › Advanced) and import them in Taskline.
 
-```bash
-kpackagetool6 -t Plasma/Applet --install Taskline.plasmoid
-```
+To update: `git pull && make update` (this restarts plasmashell). To remove: delete the widget
+from your panels, then `make uninstall`.
 
-### Testing an in-development build
-Want to try a fix or feature before it's released? Every commit to `develop` that touches the widget gets built automatically and uploaded as a workflow artifact — no need to build it yourself. Grab it from the **[Nightly Build workflow runs](https://github.com/divinae/Taskline/actions/workflows/nightly.yml)**: open the latest successful run and download the `.plasmoid` from its Artifacts section (requires being signed in to GitHub), then install it the same way as above.
+## Development
 
-*(These are unreleased, in-progress builds — expect rough edges. The version shown in the widget's settings tells you exactly which commit it was built from.)*
+`make preview` opens the widget in a window, `make test` runs the unit tests of the Python
+helper, `make lint` runs ruff, shellcheck and the settings check, `make diag` writes a report
+for bug reports (`taskline-diag.txt`). The changes since the fork are in the
+[CHANGELOG](CHANGELOG.md).
 
-### From the KDE Store
-You can also grab it from the [KDE Store](https://store.kde.org/p/2350434) straight through the Plasma "Get New Widgets" dialog.
-*(Note: The KDE Store version might occasionally be a bit behind the GitHub releases.)*
+## When something's off
 
-## Keeping it updated
+- **No jump lists, recent documents or badges:** the Python helpers aren't running. Check the
+  Advanced settings page and `make diag` for the missing module.
+- **Media controls on the wrong browser window:** a browser doesn't say which tab plays, so
+  Taskline goes by the window title and, for web apps, by the site. While a web app and a normal
+  tab play at the same time, the sound counts for the web app.
+- **The bouncing icon doesn't appear at the screen edge:** it only shows for auto-hidden panels,
+  and not while a window is fullscreen.
 
-If you installed from source, updating is a breeze. Just open a terminal in your cloned `Taskline` folder and run:
+## Credits
 
-```bash
-git pull
-make update
-```
-This will fetch the latest code, recompile what's needed, install the update, and seamlessly restart Plasma for you. 
+Taskline builds on the work of:
 
-## Uninstallation
+- [Vitaliy Elin](https://github.com/daydve): Fancy Tasks NG, the Plasma 6 rewrite this is
+  forked from.
+- [SushiTrashXD](https://github.com/SushiTrashXD): FancyTasksPlus, the first Plasma 6 port.
+- [Alexandra Stone](https://github.com/alexankitty): the original FancyTasks for Plasma 5.
+- [Luis Bocanegra](https://github.com/luisbocanegra): the hover zoom.
+- The KDE task manager, which all of them started from.
 
-If you ever need to remove it, make sure you first delete any Taskline widgets from your panels. Then run:
+## License
 
-```bash
-make uninstall
-```
-
-## Contributing
-Found a bug? Have a great idea for a feature? All contributions are welcome! 
-
-Head over to the [GitHub Issues tracker](https://github.com/divinae/Taskline/issues) to report bugs or request features.
-
-## Acknowledgements
-
-This project wouldn't exist without the amazing work of the original authors and the KDE community. A massive thank you to:
-
-| Who | What they did |
-|---|---|
-| [Vitaliy Elin](https://github.com/daydve) | Created Fancy Tasks NG, the Plasma 6 rewrite this project is forked from. |
-| [SushiTrashXD](https://github.com/SushiTrashXD) | Created FancyTasksPlus (the initial Plasma 6 port that Fancy Tasks NG started from). |
-| [Alexandra Stone](https://github.com/alexankitty) | Created the original FancyTasks for Plasma 5, pioneering the animated indicators and badges. |
-| [Luis Bocanegra](https://github.com/luisbocanegra) | Implemented the original hover-zoom logic. |
-| The Community | Everyone who has submitted bug reports, PRs, and ideas. |
-
----
-
-<p align="center">
-  <sub>Licensed under GPL-3.0-or-later &nbsp;·&nbsp; Maintained by <a href="https://github.com/divinae">Jakub Lipinski</a> · Based on Fancy Tasks NG by <a href="https://github.com/daydve">Vitaliy Elin</a></sub>
-</p>
+GPL-3.0-or-later.
