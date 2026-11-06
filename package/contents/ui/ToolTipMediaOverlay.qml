@@ -6,7 +6,8 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import org.kde.plasma.components as PlasmaComponents3
+
+import "code/media.js" as Media
 
 Item {
     id: overlayRoot
@@ -20,8 +21,6 @@ Item {
 
     readonly property int smallSpacing: Kirigami.Units.smallSpacing
     readonly property int longDuration: Kirigami.Units.longDuration
-    readonly property int gridUnit: Kirigami.Units.gridUnit
-    readonly property int iconSmall: Kirigami.Units.iconSizes.small
 
     width: parent.width
     height: controlsColumn.implicitHeight + (overlayRoot.smallSpacing * 2)
@@ -63,84 +62,17 @@ Item {
             visible: overlayRoot.mediaController ? overlayRoot.mediaController.showPlayerControls : false
             Layout.fillWidth: true
             showText: true // Show track details in the visual overlay as it fits nicely on thumbnails
-            playerData: overlayRoot.mediaController && overlayRoot.mediaController.playerData ? overlayRoot.mediaController.playerData : ({
-                canControl: false,
-                playbackStatus: 0,
-                track: "",
-                artist: "",
-                canGoPrevious: false,
-                canPlay: false,
-                canPause: false,
-                canGoNext: false
-            })
+            playerData: overlayRoot.mediaController && overlayRoot.mediaController.playerData ? overlayRoot.mediaController.playerData : Media.emptyPlayer
             isWin: overlayRoot.mediaController && overlayRoot.mediaController.toolTipDelegate ? overlayRoot.mediaController.toolTipDelegate.isWin : false
         }
 
         // Volume Controls
-        RowLayout {
+        MediaVolumeRow {
             visible: overlayRoot.mediaController ? overlayRoot.mediaController.showVolumeControls : false
             Layout.fillWidth: true
-            spacing: overlayRoot.smallSpacing
+            mediaController: overlayRoot.mediaController
 
-            PlasmaComponents3.ToolButton {
-                icon.width: overlayRoot.iconSmall
-                icon.height: overlayRoot.iconSmall
-              
-                icon.name: if (checked) {
-                    "audio-volume-muted";
-                } else if (Math.round(slider.value / slider.to * 100) <= 25) {
-                    "audio-volume-low";
-                } else if (Math.round(slider.value / slider.to * 100) <= 75) {
-                    "audio-volume-medium";
-                } else {
-                    "audio-volume-high";
-                }
-                
-                display: PlasmaComponents3.AbstractButton.IconOnly
-                checkable: true
-                checked: overlayRoot.mediaController ? overlayRoot.mediaController.muted : false
-                onClicked: {
-                    if (overlayRoot.mediaController) {
-                        overlayRoot.mediaController.toggleMuted();
-                    }
-                }
-            }
-
-            PlasmaComponents3.Slider {
-                id: slider
-                Layout.fillWidth: true
-                
-                from: overlayRoot.mediaController && overlayRoot.mediaController.audioStreamManager ? overlayRoot.mediaController.audioStreamManager.item.minimalVolume : 0
-                to: overlayRoot.mediaController && overlayRoot.mediaController.audioStreamManager ? overlayRoot.mediaController.audioStreamManager.item.normalVolume : 65536
-                
-                // Block built-in QML Slider wheel handling completely to prevent duplicate scroll bugs!
-                WheelHandler {
-                    acceptedButtons: Qt.NoButton
-                    onWheel: (event) => {
-                        event.accepted = true;
-                    }
-                }
-
-                Binding {
-                    target: slider
-                    property: "value"
-                    value: overlayRoot.mediaController ? overlayRoot.mediaController.appVolume : 0
-                    when: !slider.pressed
-                }
-                
-                onMoved: {
-                    if (overlayRoot.mediaController) {
-                        overlayRoot.mediaController.setVolume(value);
-                    }
-                }
-            }
-            
-            PlasmaComponents3.Label {
-                text: Math.round(slider.value / slider.to * 100) + "%"
-                Layout.minimumWidth: overlayRoot.gridUnit * 1.5
-                font: Kirigami.Theme.smallFont
-                horizontalAlignment: Text.AlignHCenter
-            }
+            percentLabel.font: Kirigami.Theme.smallFont
         }
     }
 

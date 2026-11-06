@@ -4,7 +4,8 @@
 */
 
 import QtQuick
-import org.kde.plasma.plasmoid
+
+import "code/media.js" as Media
 
 Item {
     id: controller
@@ -14,14 +15,12 @@ Item {
 
     // Audio stream manager from tasksRoot
     readonly property var audioStreamManager: taskItem && taskItem.tasksRoot ? taskItem.tasksRoot.audioStreamManager : null
-    readonly property var config: Plasmoid.configuration
-    readonly property bool audioIndicatorsEnabled: config ? config.indicateAudioStreams : false
 
     // Exposed Audio State Properties
     property var audioStreams: []
     readonly property bool hasAudioStream: audioStreams.length > 0
-    readonly property bool playingAudio: hasAudioStream && audioStreams.some(item => !item.corked)
-    readonly property bool muted: hasAudioStream && audioStreams.every(item => item.muted)
+    readonly property bool playingAudio: Media.streamsPlaying(audioStreams)
+    readonly property bool muted: Media.streamsMuted(audioStreams)
 
     // Query and update PulseAudio streams matching the task
     function updateAudioStreams(): void {
@@ -36,17 +35,16 @@ Item {
             return;
         }
 
-        audioStreams = tasksRoot.audioStreamsFor(pa, taskItem.model.AppId, taskItem.model.AppPid, taskItem.model.AppName,
+        const streams = tasksRoot.audioStreamsFor(pa, taskItem.model.AppId, taskItem.model.AppPid, taskItem.model.AppName,
             String(taskItem.model.LauncherUrlWithoutIcon || ""));
+        // Keep the old array when nothing changed, so dependent bindings don't re-evaluate
+        if (streams.length !== audioStreams.length || streams.some((stream, i) => stream !== audioStreams[i]))
+            audioStreams = streams;
     }
 
     // Toggle mute state for all application streams
     function toggleMuted(): void {
-        if (muted) {
-            audioStreams.forEach(item => item.unmute());
-        } else {
-            audioStreams.forEach(item => item.mute());
-        }
+        Media.toggleStreamsMuted(audioStreams);
     }
 
     // Adjust application volume or system global volume
@@ -56,29 +54,23 @@ Item {
         const tasksRoot = taskItem.tasksRoot;
         if (!tasksRoot) return;
 
-        const audioManager = tasksRoot.audioStreamManager.item;
-        if (!audioManager) return;
+        if (isGlobal) {
+            tasksRoot.adjustGlobalVolume(increment);
+            return;
+        }
 
-        const streams = isGlobal ? (audioManager.preferredSink ? [audioManager.preferredSink] : []) : audioStreams;
-        if (streams.length === 0) return;
-        
+        const audioManager = tasksRoot.audioStreamManager.item;
+        if (!audioManager || audioStreams.length === 0) return;
+
         let lastResult = null;
-        streams.forEach(stream => {
+        audioStreams.forEach(stream => {
             lastResult = audioManager.adjustObjectVolume(stream, increment);
         });
 
-        if (lastResult) {
-            if (isGlobal) {
-                if (tasksRoot.globalVolumeOverlay && tasksRoot.globalVolumeOverlay.item) {
-                    tasksRoot.globalVolumeOverlay.item.volume = lastResult.volume;
-                    tasksRoot.globalVolumeOverlay.item.muted = lastResult.muted;
-                    tasksRoot.globalVolumeOverlay.item.show();
-                }
-            } else if (taskItem.volumeOverlay) {
-                taskItem.volumeOverlay.volume = lastResult.volume;
-                taskItem.volumeOverlay.muted = lastResult.muted;
-                taskItem.volumeOverlay.show();
-            }
+        if (lastResult && taskItem.volumeOverlay) {
+            taskItem.volumeOverlay.volume = lastResult.volume;
+            taskItem.volumeOverlay.muted = lastResult.muted;
+            taskItem.volumeOverlay.show();
         }
     }
 
@@ -95,11 +87,12 @@ Item {
     Connections {
         target: controller.taskItem ? controller.taskItem.tasksRoot : null
         ignoreUnknownSignals: true
+        // Both can change in one refresh; callLater runs a single update for them
         function onWebAppTracksChanged(): void {
-            controller.updateAudioStreams();
+            Qt.callLater(controller.updateAudioStreams);
         }
         function onWebAppLaunchersChanged(): void {
-            controller.updateAudioStreams();
+            Qt.callLater(controller.updateAudioStreams);
         }
     }
 

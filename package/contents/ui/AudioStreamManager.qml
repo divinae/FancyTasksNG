@@ -19,6 +19,15 @@ QtObject {
 
     signal streamsChanged()
 
+    // Emits streamsChanged once per event loop pass, however often it is requested: streams
+    // come and go in bursts, and registerPidMatch runs while controllers query their streams
+    function _emitStreamsChanged(): void {
+        Qt.callLater(audioStreamManager._doEmitStreamsChanged);
+    }
+    function _doEmitStreamsChanged(): void {
+        audioStreamManager.streamsChanged();
+    }
+
     // Parent PID of each stream PID (from the helper; QML can't read /proc). Chromium-family
     // browsers play audio from a utility child process whose parent owns the windows.
     property var parentPidMap: ({})
@@ -36,7 +45,7 @@ QtObject {
             for (const pid of missing)
                 next[String(pid)] = map[String(pid)] || 0;
             audioStreamManager.parentPidMap = next;
-            audioStreamManager.streamsChanged();
+            audioStreamManager._emitStreamsChanged();
         });
     }
 
@@ -50,7 +59,7 @@ QtObject {
             next[pid] = true;
             pidMatches = next;
             // Lets a task that already grabbed this stream by name drop it
-            streamsChanged();
+            _emitStreamsChanged();
         }
     }
     
@@ -115,10 +124,10 @@ QtObject {
         }
 
         onObjectAdded: (index, object) => {
-            audioStreamManager.streamsChanged();
+            audioStreamManager._emitStreamsChanged();
             Qt.callLater(audioStreamManager.refreshParentPids);
         }
-        onObjectRemoved: (index, object) => audioStreamManager.streamsChanged()
+        onObjectRemoved: (index, object) => audioStreamManager._emitStreamsChanged()
     }
 
     // Streams of an app: by portal app id (sandboxed apps), then process id, then app name

@@ -11,6 +11,7 @@ import org.kde.plasma.components as PlasmaComponents3
 import org.kde.plasma.private.mpris as Mpris
 
 import "code/singletones"
+import "code/media.js" as Media
 
 Item {
     id: barRoot
@@ -54,25 +55,13 @@ Item {
             spacing: 2
             Layout.alignment: Qt.AlignVCenter
 
-            PlasmaComponents3.ToolButton {
-                implicitWidth: Kirigami.Units.gridUnit * 1.2
-                implicitHeight: Kirigami.Units.gridUnit * 1.2
-                padding: 0
-                icon.width: Kirigami.Units.iconSizes.small
-                icon.height: Kirigami.Units.iconSizes.small
-
+            TransportButton {
                 enabled: barRoot.player ? barRoot.player.canGoPrevious : false
                 icon.name: mirrored ? "media-skip-forward" : "media-skip-backward"
                 onClicked: if (barRoot.player) barRoot.player.Previous()
             }
 
-            PlasmaComponents3.ToolButton {
-                implicitWidth: Kirigami.Units.gridUnit * 1.2
-                implicitHeight: Kirigami.Units.gridUnit * 1.2
-                padding: 0
-                icon.width: Kirigami.Units.iconSizes.small
-                icon.height: Kirigami.Units.iconSizes.small
-
+            TransportButton {
                 readonly property bool isPlaying: barRoot.player ? barRoot.player.playbackStatus === Mpris.PlaybackStatus.Playing : false
                 enabled: barRoot.player ? (isPlaying ? barRoot.player.canPause : DesktopActionsManager.canPlay(barRoot.player)) : false
                 icon.name: isPlaying ? "media-playback-pause" : "media-playback-start"
@@ -87,13 +76,7 @@ Item {
                 }
             }
 
-            PlasmaComponents3.ToolButton {
-                implicitWidth: Kirigami.Units.gridUnit * 1.2
-                implicitHeight: Kirigami.Units.gridUnit * 1.2
-                padding: 0
-                icon.width: Kirigami.Units.iconSizes.small
-                icon.height: Kirigami.Units.iconSizes.small
-
+            TransportButton {
                 enabled: barRoot.player ? barRoot.player.canGoNext : false
                 icon.name: mirrored ? "media-skip-backward" : "media-skip-forward"
                 onClicked: if (barRoot.player) barRoot.player.Next()
@@ -174,19 +157,7 @@ Item {
             icon.height: Kirigami.Units.iconSizes.small
             Layout.alignment: Qt.AlignVCenter
 
-            icon.name: {
-                if (barRoot.muted) {
-                    return "audio-volume-muted";
-                }
-                let volPercent = Math.round(barRoot.appVolume / 65536 * 100);
-                if (volPercent <= 25) {
-                    return "audio-volume-low";
-                } else if (volPercent <= 75) {
-                    return "audio-volume-medium";
-                } else {
-                    return "audio-volume-high";
-                }
-            }
+            icon.name: Media.volumeIconName(barRoot.muted, barRoot.appVolume / 65536)
 
             text: Wrappers.i18n("Mute")
             display: PlasmaComponents3.AbstractButton.IconOnly
@@ -326,74 +297,17 @@ Item {
             Layout.fillHeight: true
             Layout.alignment: Qt.AlignVCenter
 
-            RowLayout {
-                id: inlineVolumeLayout
+            MediaVolumeRow {
                 anchors.fill: parent
-                spacing: Kirigami.Units.smallSpacing
+                mediaController: barRoot.mediaController
 
-            PlasmaComponents3.ToolButton {
-                implicitWidth: Kirigami.Units.gridUnit * 1.2
-                implicitHeight: Kirigami.Units.gridUnit * 1.2
-                padding: 0
-                icon.width: Kirigami.Units.iconSizes.small
-                icon.height: Kirigami.Units.iconSizes.small
-
-                icon.name: {
-                    if (checked) return "audio-volume-muted";
-                    let pct = Math.round(inlineVolumeSlider.value / inlineVolumeSlider.to * 100);
-                    if (pct <= 25) return "audio-volume-low";
-                    if (pct <= 75) return "audio-volume-medium";
-                    return "audio-volume-high";
-                }
-
-                text: Wrappers.i18n("Mute")
-                display: PlasmaComponents3.AbstractButton.IconOnly
-                checkable: true
-                checked: barRoot.muted
-                onClicked: {
-                    if (barRoot.mediaController)
-                        barRoot.mediaController.toggleMuted();
-                }
-            }
-
-            PlasmaComponents3.Slider {
-                id: inlineVolumeSlider
-                Layout.fillWidth: true
-                topPadding: 4
-                bottomPadding: 4
-
-                from: barRoot.streamMgr ? barRoot.streamMgr.item.minimalVolume : 0
-                to: barRoot.streamMgr ? barRoot.streamMgr.item.normalVolume : 65536
-
-                WheelHandler {
-                    acceptedButtons: Qt.NoButton
-                    onWheel: (event) => {
-                        event.accepted = true;
-                    }
-                }
-
-                Binding {
-                    target: inlineVolumeSlider
-                    property: "value"
-                    value: barRoot.appVolume
-                    when: !inlineVolumeSlider.pressed
-                }
-
-                onMoved: {
-                    if (barRoot.mediaController)
-                        barRoot.mediaController.setVolume(value);
-                }
-
-
-            }
-
-            PlasmaComponents3.Label {
-                text: Math.round(inlineVolumeSlider.value / inlineVolumeSlider.to * 100) + "%"
-                Layout.minimumWidth: Kirigami.Units.gridUnit * 1.5
-                font: Kirigami.Theme.smallFont
-                horizontalAlignment: Text.AlignHCenter
-            }
-
+                muteButton.implicitWidth: Kirigami.Units.gridUnit * 1.2
+                muteButton.implicitHeight: Kirigami.Units.gridUnit * 1.2
+                muteButton.padding: 0
+                muteButton.text: Wrappers.i18n("Mute")
+                slider.topPadding: 4
+                slider.bottomPadding: 4
+                percentLabel.font: Kirigami.Theme.smallFont
             }
 
             MouseArea {

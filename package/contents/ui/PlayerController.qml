@@ -36,8 +36,6 @@ RowLayout {
 
     readonly property int smallSpacing: Kirigami.Units.smallSpacing
     readonly property int gridUnit: Kirigami.Units.gridUnit
-    readonly property int iconSmall: Kirigami.Units.iconSizes.small
-    readonly property int iconSmallMedium: Kirigami.Units.iconSizes.smallMedium
     readonly property font smallFont: Kirigami.Theme.smallFont
 
     ColumnLayout {
@@ -84,25 +82,15 @@ RowLayout {
         }
     }
 
-    PlasmaComponents3.ToolButton {
-        implicitWidth: playerControllerRoot.showText ? playerControllerRoot.gridUnit * 1.6 : playerControllerRoot.gridUnit * 1.2
-        implicitHeight: playerControllerRoot.showText ? playerControllerRoot.gridUnit * 1.6 : playerControllerRoot.gridUnit * 1.2
-        padding: playerControllerRoot.showText ? playerControllerRoot.smallSpacing : 0
-        icon.width: playerControllerRoot.showText ? playerControllerRoot.iconSmallMedium : playerControllerRoot.iconSmall
-        icon.height: playerControllerRoot.showText ? playerControllerRoot.iconSmallMedium : playerControllerRoot.iconSmall
-
+    TransportButton {
+        large: playerControllerRoot.showText
         enabled: playerControllerRoot.playerData.canGoPrevious
         icon.name: mirrored ? "media-skip-forward" : "media-skip-backward"
         onClicked: playerControllerRoot.playerData.Previous()
     }
 
-    PlasmaComponents3.ToolButton {
-        implicitWidth: playerControllerRoot.showText ? playerControllerRoot.gridUnit * 1.6 : playerControllerRoot.gridUnit * 1.2
-        implicitHeight: playerControllerRoot.showText ? playerControllerRoot.gridUnit * 1.6 : playerControllerRoot.gridUnit * 1.2
-        padding: playerControllerRoot.showText ? playerControllerRoot.smallSpacing : 0
-        icon.width: playerControllerRoot.showText ? playerControllerRoot.iconSmallMedium : playerControllerRoot.iconSmall
-        icon.height: playerControllerRoot.showText ? playerControllerRoot.iconSmallMedium : playerControllerRoot.iconSmall
-
+    TransportButton {
+        large: playerControllerRoot.showText
         enabled: playerControllerRoot.isPlaying ? playerControllerRoot.playerData.canPause : DesktopActionsManager.canPlay(playerControllerRoot.playerData)
         icon.name: playerControllerRoot.isPlaying ? "media-playback-pause" : "media-playback-start"
         onClicked: {
@@ -114,13 +102,8 @@ RowLayout {
         }
     }
 
-    PlasmaComponents3.ToolButton {
-        implicitWidth: playerControllerRoot.showText ? playerControllerRoot.gridUnit * 1.6 : playerControllerRoot.gridUnit * 1.2
-        implicitHeight: playerControllerRoot.showText ? playerControllerRoot.gridUnit * 1.6 : playerControllerRoot.gridUnit * 1.2
-        padding: playerControllerRoot.showText ? playerControllerRoot.smallSpacing : 0
-        icon.width: playerControllerRoot.showText ? playerControllerRoot.iconSmallMedium : playerControllerRoot.iconSmall
-        icon.height: playerControllerRoot.showText ? playerControllerRoot.iconSmallMedium : playerControllerRoot.iconSmall
-
+    TransportButton {
+        large: playerControllerRoot.showText
         enabled: playerControllerRoot.playerData.canGoNext
         icon.name: mirrored ? "media-skip-backward" : "media-skip-forward"
         onClicked: playerControllerRoot.playerData.Next()

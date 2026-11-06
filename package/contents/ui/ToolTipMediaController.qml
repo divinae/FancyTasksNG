@@ -7,6 +7,8 @@ import QtQuick
 import org.kde.plasma.plasmoid
 import org.kde.plasma.private.mpris as Mpris
 
+import "code/media.js" as Media
+
 Item {
     id: controller
 
@@ -82,28 +84,20 @@ Item {
 
     // Audio Streams
     property var audioStreams: []
-    property bool delayAudioStreamIndicator: false
     readonly property bool hasAudioStream: audioStreams.length > 0
-    readonly property bool muted: hasAudioStream && audioStreams.every(item => item.muted)
-    readonly property bool playingAudio: hasAudioStream && audioStreams.some(item => !item.corked)
+    readonly property bool muted: Media.streamsMuted(audioStreams)
+    readonly property bool playingAudio: Media.streamsPlaying(audioStreams)
 
     // While userVolumeChangeTimer is running, expose cachedVolume instead of live PA
     // to prevent the slider from showing intermediate PA values during rapid scrolling.
     property int cachedVolume: 0
     readonly property int appVolume: {
-        if (hasAudioStream && audioStreams.length > 0 && !userVolumeChangeTimer.running) {
-            let validStreams = audioStreams.filter(s => s && typeof s.volume !== 'undefined');
-            if (validStreams.length > 0) {
-                return validStreams.reduce((max, s) => Math.max(max, s.volume), 0);
-            }
+        if (hasAudioStream && !userVolumeChangeTimer.running) {
+            const volume = Media.maxStreamVolume(audioStreams);
+            if (volume >= 0)
+                return volume;
         }
         return cachedVolume;
-    }
-
-    function hasWindowSpecificStream(winId) {
-        if (!winId || !hasAudioStream)
-            return false;
-        return audioStreams.some(stream => stream.windowId === winId);
     }
 
     Timer {
@@ -121,18 +115,13 @@ Item {
         interval: 500
         repeat: false
         onTriggered: {
-            var validStreams = controller.audioStreams.filter(s => s && typeof s.volume !== 'undefined');
-            if (validStreams.length > 0)
-                controller.cachedVolume = validStreams.reduce((max, s) => Math.max(max, s.volume), 0);
+            const volume = Media.maxStreamVolume(controller.audioStreams);
+            if (volume >= 0)
+                controller.cachedVolume = volume;
         }
     }
 
-    function updateAudioStreams(args) {
-        if (args && args.delay) {
-            delayAudioStreamIndicator = true;
-        }
-        var currentForce = (args && args.force);
-
+    function updateAudioStreams() {
         if (!controller.audioStreamManager) {
             streamClearTimer.stop();
             audioStreams = [];
@@ -153,9 +142,9 @@ Item {
             // While userVolumeChangeTimer is running we keep cachedVolume as-is so
             // the slider stays at the intended position until PA fully converges.
             if (!userVolumeChangeTimer.running) {
-                let validStreams = streams.filter(s => s && typeof s.volume !== 'undefined');
-                if (validStreams.length > 0)
-                    cachedVolume = validStreams.reduce((max, s) => Math.max(max, s.volume), 0);
+                const volume = Media.maxStreamVolume(streams);
+                if (volume >= 0)
+                    cachedVolume = volume;
             }
             streamClearTimer.stop();
             audioStreams = streams;
@@ -170,11 +159,7 @@ Item {
     }
 
     function toggleMuted() {
-        if (muted) {
-            audioStreams.forEach(item => item.unmute());
-        } else {
-            audioStreams.forEach(item => item.mute());
-        }
+        Media.toggleStreamsMuted(audioStreams);
     }
 
     function adjustAppVolume(increment) {
@@ -205,37 +190,28 @@ Item {
         target: controller.audioStreamManager ? controller.audioStreamManager.item : null
         ignoreUnknownSignals: true
         function onStreamsChanged() {
-            controller.updateAudioStreams({
-                delay: true
-            });
+            controller.updateAudioStreams();
         }
     }
 
-    onAppPidChanged: updateAudioStreams({
-        delay: false,
-        force: true
-    })
-    onAppIdChanged: updateAudioStreams({
-        delay: false,
-        force: true
-    })
+    onAppPidChanged: updateAudioStreams()
+    onAppIdChanged: updateAudioStreams()
     Connections {
         target: controller.tasksRoot
         ignoreUnknownSignals: true
+        // Both can change in one refresh; callLater runs a single update for them
         function onWebAppTracksChanged() {
-            controller.updateAudioStreams({ delay: false, force: true });
+            Qt.callLater(controller.updateAudioStreams);
         }
         function onWebAppLaunchersChanged() {
-            controller.updateAudioStreams({ delay: false, force: true });
+            Qt.callLater(controller.updateAudioStreams);
         }
     }
     Component.onCompleted: {
-        updateAudioStreams({
-            delay: false,
-            force: true
-        });
+        updateAudioStreams();
+        // Every tile of a group tooltip asks; callLater makes that a single refresh
         if (tasksRoot)
-            tasksRoot.refreshWebAppTracks();
+            Qt.callLater(tasksRoot.refreshWebAppTracks);
     }
 
     // Effective control state calculation
