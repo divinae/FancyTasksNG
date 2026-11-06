@@ -192,10 +192,8 @@ PlasmaExtras.Menu {
                 let menuItem = menu.newMenuItem(menu);
                 menuItem.text = action.name;
                 setIcon(menuItem, action.icon);
-                menuItem.clicked.connect(() => {
-                    let cleanExec = action.exec.replace(/%[uUfF]/g, "").trim();
-                    DesktopActionsManager.executeCommand(cleanExec);
-                });
+                // The helper's expand_exec drops the field codes (%u, %F, ...) itself
+                menuItem.clicked.connect(() => DesktopActionsManager.executeCommand(action.exec));
                 menu.addMenuItem(menuItem, insertItem);
                 _dynamicDesktopItems.push(menuItem);
             });

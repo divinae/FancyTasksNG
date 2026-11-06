@@ -2,43 +2,30 @@
 # SPDX-FileCopyrightText: 2026 Vitaliy Elin <daydve@smbit.pro>
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-import dbus
-import dbus.service
-from dbus.mainloop.glib import DBusGMainLoop
-from gi.repository import GLib
-import sys
-import ctypes
-import signal
-
-def set_pdeathsig():
-    """Ensure the process dies when its parent (plasmashell) dies."""
-    try:
-        libc = ctypes.CDLL("libc.so.6")
-        libc.prctl(1, signal.SIGTERM) # 1 is PR_SET_PDEATHSIG
-    except Exception:
-        pass
-
 """
 Unity Bridge Sniffer - DBus Re-emitter
 Listens for Unity signals and re-emits them on a private interface
 that QML can easily consume.
 """
 
+import dbus
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib
+import sys
+
+from helper_common import export_service, set_pdeathsig
+
+
 class BridgeEmitter(dbus.service.Object):
     def __init__(self):
-        # We use a unique name for our bridge to avoid conflicts
-        try:
-            self.bus = dbus.SessionBus()
-            self.bus_name = dbus.service.BusName('io.github.divinae.taskline.Bridge', bus=self.bus, do_not_queue=True)
-            dbus.service.Object.__init__(self, self.bus_name, '/Bridge')
-            print("Bridge: Re-emitter is ready on io.github.divinae.taskline.Bridge")
-        except dbus.exceptions.NameExistsException:
-            # Another task manager instance already runs the bridge; its signals reach everyone.
-            print("Bridge: already running")
-            sys.exit(0)
-        except Exception as e:
-            print(f"Bridge error: {e}", file=sys.stderr)
-            sys.exit(1)
+        # We use a unique name for our bridge to avoid conflicts. If another task manager
+        # instance already runs the bridge, this one exits: its signals reach everyone.
+        self.bus, self.bus_name = export_service(
+            self, 'io.github.divinae.taskline.Bridge', '/Bridge',
+            ready_msg="Bridge: Re-emitter is ready on io.github.divinae.taskline.Bridge",
+            running_msg="Bridge: already running",
+            error_prefix="Bridge error")
 
     @dbus.service.signal('io.github.divinae.taskline.BadgeUpdate', signature='sidb')
     def UpdateSignal(self, appId, count, progress, urgent):

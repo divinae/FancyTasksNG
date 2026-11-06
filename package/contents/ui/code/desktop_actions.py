@@ -26,7 +26,6 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-import ctypes
 import signal
 
 import dbus
@@ -35,6 +34,8 @@ from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
+
+from helper_common import export_service, set_pdeathsig
 
 KACTIVITIES_DB = Path.home() / ".local/share/kactivitymanagerd/resources/database"
 def _xdg_application_dirs():
@@ -87,6 +88,17 @@ def read_desktop_file(path):
     return cp if cp.has_section("Desktop Entry") else None
 
 
+def _find_in_desktop_dirs(name):
+    """First DESKTOP_DIRS entry holding name (".desktop" appended if missing), or None."""
+    if not name.endswith(".desktop"):
+        name += ".desktop"
+    for d in DESKTOP_DIRS:
+        candidate = os.path.join(d, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def resolve_launcher_url(url_str):
     """Convert a launcher URL to a local .desktop file path."""
     if not url_str:
@@ -100,21 +112,13 @@ def resolve_launcher_url(url_str):
             return path
 
     if parsed.scheme == "applications" or parsed.scheme == "":
-        name = parsed.path.lstrip("/")
-        if not name.endswith(".desktop"):
-            name += ".desktop"
-        for d in DESKTOP_DIRS:
-            candidate = os.path.join(d, name)
-            if os.path.isfile(candidate):
-                return candidate
+        found = _find_in_desktop_dirs(parsed.path.lstrip("/"))
+        if found:
+            return found
 
     # Bare name (e.g. "org.kde.dolphin.desktop")
-    if parsed.scheme == "" and not os.path.sep in url_str:
-        name = url_str if url_str.endswith(".desktop") else url_str + ".desktop"
-        for d in DESKTOP_DIRS:
-            candidate = os.path.join(d, name)
-            if os.path.isfile(candidate):
-                return candidate
+    if parsed.scheme == "" and os.path.sep not in url_str:
+        return _find_in_desktop_dirs(url_str)
 
     return None
 
@@ -197,10 +201,56 @@ def _get_session_bus():
     return _session_bus
 
 
+# Current activity as last read or announced by kactivitymanagerd; None = unknown, ask again.
+# Only used once the change signals are subscribed, so it can't go stale.
+_current_activity = None
+_activity_signals_subscribed = False
+
+
+def _on_current_activity_changed(activity):
+    global _current_activity
+    _current_activity = str(activity)
+
+
+def _on_activity_manager_owner_changed(name, old_owner, new_owner):
+    # kactivitymanagerd restarted or quit: forget the cached activity
+    global _current_activity
+    _current_activity = None
+
+
+def _subscribe_activity_signals(bus):
+    global _activity_signals_subscribed
+    if _activity_signals_subscribed:
+        return
+    try:
+        bus.add_signal_receiver(
+            _on_current_activity_changed,
+            signal_name="CurrentActivityChanged",
+            dbus_interface="org.kde.ActivityManager.Activities",
+            bus_name="org.kde.ActivityManager",
+            path="/ActivityManager/Activities",
+        )
+        bus.add_signal_receiver(
+            _on_activity_manager_owner_changed,
+            signal_name="NameOwnerChanged",
+            dbus_interface="org.freedesktop.DBus",
+            bus_name="org.freedesktop.DBus",
+            arg0="org.kde.ActivityManager",
+        )
+        _activity_signals_subscribed = True
+    except Exception as e:
+        print(f"desktop_actions: activity signal subscription failed: {e}", file=sys.stderr)
+
+
 def get_current_activity():
-    """Get current KDE activity ID via D-Bus."""
+    """Get current KDE activity ID via D-Bus (cached, kept current by CurrentActivityChanged)."""
+    global _current_activity
+    if _activity_signals_subscribed and _current_activity:
+        return _current_activity
     try:
         bus = _get_session_bus()
+        # Subscribe before reading, so a switch right after the read is not missed
+        _subscribe_activity_signals(bus)
         # Bounded timeout: this runs on the service's single mainloop, so a hung
         # ActivityManager must not be able to freeze every tooltip/menu query.
         activity = bus.call_blocking(
@@ -210,6 +260,7 @@ def get_current_activity():
             "CurrentActivity", "", [],
             timeout=2.0,
         )
+        _current_activity = str(activity) or None
         return str(activity)
     except Exception:
         return None
@@ -327,15 +378,9 @@ def find_active_db_from_proc(db_name, app_pid=0):
         pids = [app_pid]
         # Browser renderers may have child PIDs while the main process owns the DB handle.
         # Inspect parent PID as well to cover multi-process architectures.
-        try:
-            with open(f"/proc/{app_pid}/stat", "r") as f:
-                stat_parts = f.read().split()
-                if len(stat_parts) > 3:
-                    ppid = int(stat_parts[3])
-                    if ppid > 0:
-                        pids.append(ppid)
-        except Exception:
-            pass
+        ppid = parent_pids(str(app_pid)).get(str(app_pid), 0)
+        if ppid > 0:
+            pids.append(ppid)
 
         for pid in set(pids):
             fd_dir = Path(f"/proc/{pid}/fd")
@@ -370,6 +415,83 @@ def remove_sqlite_snapshot(temp_db):
             path.unlink()
         except OSError:
             pass
+
+
+FIREFOX_HISTORY_SQL = """
+    SELECT DISTINCT url, title FROM moz_places
+    WHERE last_visit_date IS NOT NULL AND title IS NOT NULL AND url LIKE 'http%'
+    ORDER BY last_visit_date DESC LIMIT ?
+"""
+
+CHROMIUM_HISTORY_SQL = """
+    SELECT DISTINCT url, title FROM urls
+    WHERE last_visit_time IS NOT NULL AND title IS NOT NULL AND url LIKE 'http%'
+    ORDER BY last_visit_time DESC LIMIT ?
+"""
+
+FIREFOX_FAVICON_SQL = """
+    SELECT i.data FROM moz_icons i
+    JOIN moz_icons_to_pages itp ON itp.icon_id = i.id
+    JOIN moz_pages_w_icons p ON p.id = itp.page_id
+    WHERE p.page_url = ? AND i.data IS NOT NULL
+    ORDER BY i.width DESC LIMIT 1
+"""
+
+CHROMIUM_FAVICON_SQL = """
+    SELECT b.image_data FROM favicon_bitmaps b
+    JOIN icon_mapping m ON m.icon_id = b.icon_id
+    WHERE m.page_url = ? AND b.image_data IS NOT NULL
+    ORDER BY b.width DESC LIMIT 1
+"""
+
+FIREFOX_PROFILE_ROOTS = [
+    Path.home() / ".mozilla" / "firefox",
+    Path.home() / ".config" / "mozilla" / "firefox",
+    Path.home() / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox",
+    Path.home() / ".var" / "app" / "org.mozilla.firefox-trunk" / ".mozilla" / "firefox",
+    Path.home() / "snap" / "firefox" / "common" / ".mozilla" / "firefox",
+]
+
+# Chromium-family browser -> its config dirs. The order is the detection order of
+# chromium_browser_for(): the first key found in the desktop file name wins.
+CHROMIUM_PROFILE_ROOTS = {
+    "chrome": [
+        Path.home() / ".config" / "google-chrome",
+        Path.home() / ".var" / "app" / "com.google.Chrome" / "config" / "google-chrome",
+    ],
+    "brave": [
+        Path.home() / ".config" / "BraveSoftware" / "Brave-Browser",
+        Path.home() / ".var" / "app" / "com.brave.Browser" / "config" / "BraveSoftware" / "Brave-Browser",
+    ],
+    "vivaldi": [
+        Path.home() / ".config" / "vivaldi",
+        Path.home() / ".var" / "app" / "com.vivaldi.Vivaldi" / "config" / "vivaldi",
+    ],
+    "chromium": [
+        Path.home() / ".config" / "chromium",
+        Path.home() / ".var" / "app" / "org.chromium.Chromium" / "config" / "chromium",
+    ],
+    "edge": [
+        Path.home() / ".config" / "microsoft-edge",
+        Path.home() / ".var" / "app" / "com.microsoft.Edge" / "config" / "microsoft-edge",
+    ],
+    "opera": [
+        Path.home() / ".config" / "opera",
+        Path.home() / ".var" / "app" / "com.opera.Opera" / "config" / "opera",
+    ],
+}
+
+
+def is_firefox_desktop(desktop_path):
+    """Firefox or a Firefox PWA (firefoxpwa "FFPWA-..." desktop files)."""
+    name = os.path.basename(desktop_path).lower()
+    return "firefox" in name or "ffpwa" in name
+
+
+def chromium_browser_for(desktop_path):
+    """CHROMIUM_PROFILE_ROOTS key matching a desktop file name, or None."""
+    name = os.path.basename(desktop_path).lower()
+    return next((browser for browser in CHROMIUM_PROFILE_ROOTS if browser in name), None)
 
 
 def extract_favicons(history_items, favicons_db_path, browser_type):
@@ -409,29 +531,11 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
 
+        query = FIREFOX_FAVICON_SQL if browser_type == "firefox" else CHROMIUM_FAVICON_SQL
         for url, item, cached_png, cached_failed in urls_to_query:
-            blob = None
-            if browser_type == "firefox":
-                cursor.execute("""
-                    SELECT i.data FROM moz_icons i
-                    JOIN moz_icons_to_pages itp ON itp.icon_id = i.id
-                    JOIN moz_pages_w_icons p ON p.id = itp.page_id
-                    WHERE p.page_url = ? AND i.data IS NOT NULL
-                    ORDER BY i.width DESC LIMIT 1
-                """, (url,))
-                row = cursor.fetchone()
-                if row:
-                    blob = row[0]
-            else:
-                cursor.execute("""
-                    SELECT b.image_data FROM favicon_bitmaps b
-                    JOIN icon_mapping m ON m.icon_id = b.icon_id
-                    WHERE m.page_url = ? AND b.image_data IS NOT NULL
-                    ORDER BY b.width DESC LIMIT 1
-                """, (url,))
-                row = cursor.fetchone()
-                if row:
-                    blob = row[0]
+            cursor.execute(query, (url,))
+            row = cursor.fetchone()
+            blob = row[0] if row else None
 
             if blob:
                 try:
@@ -462,25 +566,19 @@ def get_firefox_recent(limit=10, app_pid=0):
     """Fetch recent Firefox history with active profile detection via process info and fallback."""
     # 1. Try to find active profile via /proc using app_pid
     active_db = find_active_db_from_proc("places.sqlite", app_pid=app_pid)
-    if active_db:
-        history = fetch_sqlite_history(active_db, """
-            SELECT DISTINCT url, title FROM moz_places 
-            WHERE last_visit_date IS NOT NULL AND title IS NOT NULL AND url LIKE 'http%'
-            ORDER BY last_visit_date DESC LIMIT ?
-        """, "places_ff_active.sqlite", limit)
-        return extract_favicons(history, active_db.parent / "favicons.sqlite", "firefox")
+    # 2. Fallback to the most recently used profile
+    db_path = active_db or _newest_firefox_places()
+    if not db_path:
+        return []
+    temp_name = "places_ff_active.sqlite" if active_db else "places_ff_recent.sqlite"
+    history = fetch_sqlite_history(db_path, FIREFOX_HISTORY_SQL, temp_name, limit)
+    return extract_favicons(history, db_path.parent / "favicons.sqlite", "firefox")
 
-    # 2. Fallback to searching directories
-    search_dirs = [
-        Path.home() / ".mozilla" / "firefox",
-        Path.home() / ".config" / "mozilla" / "firefox",
-        Path.home() / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox",
-        Path.home() / ".var" / "app" / "org.mozilla.firefox-trunk" / ".mozilla" / "firefox",
-        Path.home() / "snap" / "firefox" / "common" / ".mozilla" / "firefox"
-    ]
-    
+
+def _newest_firefox_places():
+    """places.sqlite of the most recently written Firefox profile, or None."""
     candidates = []
-    for d in search_dirs:
+    for d in FIREFOX_PROFILE_ROOTS:
         if d.exists() and (d / "profiles.ini").exists():
             try:
                 config = configparser.ConfigParser()
@@ -493,63 +591,28 @@ def get_firefox_recent(limit=10, app_pid=0):
                             candidates.append(full_path / "places.sqlite")
             except Exception: continue
 
-    if not candidates: return []
-    
-    # Pick most recent
-    db_path = max(candidates, key=lambda p: p.stat().st_mtime)
-    
-    query = """
-        SELECT DISTINCT url, title FROM moz_places 
-        WHERE last_visit_date IS NOT NULL AND title IS NOT NULL AND url LIKE 'http%'
-        ORDER BY last_visit_date DESC LIMIT ?
-    """
-    history = fetch_sqlite_history(db_path, query, "places_ff_recent.sqlite", limit)
-    return extract_favicons(history, db_path.parent / "favicons.sqlite", "firefox")
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
 def get_chromium_recent(browser_name, limit=10, app_pid=0):
     """Fetch recent history for Chromium-based browsers with active profile detection."""
     # 1. Try to find active profile via /proc using app_pid
     active_db = find_active_db_from_proc("History", app_pid=app_pid)
-    if active_db:
-        history = fetch_sqlite_history(active_db, """
-            SELECT DISTINCT url, title FROM urls 
-            WHERE last_visit_time IS NOT NULL AND title IS NOT NULL AND url LIKE 'http%'
-            ORDER BY last_visit_time DESC LIMIT ?
-        """, f"history_{browser_name}_active.sqlite", limit)
-        return extract_favicons(history, active_db.parent / "Favicons", "chromium")
+    # 2. Fallback to the most recently used profile
+    db_path = active_db or _newest_chromium_history(browser_name)
+    if not db_path:
+        return []
+    temp_name = f"history_{browser_name}_{'active' if active_db else 'recent'}.sqlite"
+    history = fetch_sqlite_history(db_path, CHROMIUM_HISTORY_SQL, temp_name, limit)
+    return extract_favicons(history, db_path.parent / "Favicons", "chromium")
 
-    # 2. Fallback to searching directories
-    configs = {
-        "chrome": [
-            Path.home() / ".config" / "google-chrome",
-            Path.home() / ".var" / "app" / "com.google.Chrome" / "config" / "google-chrome"
-        ],
-        "chromium": [
-            Path.home() / ".config" / "chromium",
-            Path.home() / ".var" / "app" / "org.chromium.Chromium" / "config" / "chromium"
-        ],
-        "brave": [
-            Path.home() / ".config" / "BraveSoftware" / "Brave-Browser",
-            Path.home() / ".var" / "app" / "com.brave.Browser" / "config" / "BraveSoftware" / "Brave-Browser"
-        ],
-        "vivaldi": [
-            Path.home() / ".config" / "vivaldi",
-            Path.home() / ".var" / "app" / "com.vivaldi.Vivaldi" / "config" / "vivaldi"
-        ],
-        "edge": [
-            Path.home() / ".config" / "microsoft-edge",
-            Path.home() / ".var" / "app" / "com.microsoft.Edge" / "config" / "microsoft-edge"
-        ],
-        "opera": [
-            Path.home() / ".config" / "opera",
-            Path.home() / ".var" / "app" / "com.opera.Opera" / "config" / "opera"
-        ],
-    }
-    
-    base_dirs = configs.get(browser_name, [])
+
+def _newest_chromium_history(browser_name):
+    """History DB of the most recently written profile of a Chromium-family browser, or None."""
     candidates = []
-    for base in base_dirs:
+    for base in CHROMIUM_PROFILE_ROOTS.get(browser_name, []):
         if not base.exists(): continue
         # Common profile names
         for profile in ["Default", "Profile 1", "Profile 2", "."]:
@@ -557,16 +620,9 @@ def get_chromium_recent(browser_name, limit=10, app_pid=0):
             if history_db.exists():
                 candidates.append(history_db)
 
-    if not candidates: return []
-    
-    db_path = max(candidates, key=lambda p: p.stat().st_mtime)
-    query = """
-        SELECT DISTINCT url, title FROM urls 
-        WHERE last_visit_time IS NOT NULL AND title IS NOT NULL AND url LIKE 'http%'
-        ORDER BY last_visit_time DESC LIMIT ?
-    """
-    history = fetch_sqlite_history(db_path, query, f"history_{browser_name}_recent.sqlite", limit)
-    return extract_favicons(history, db_path.parent / "Favicons", "chromium")
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
 # (db path, query, limit) -> (file signature, rows); avoids re-copying an unchanged history DB
@@ -732,29 +788,14 @@ def get_kde_places():
     return places
 
 
-
-def set_pdeathsig():
-    """Ensure the process dies when its parent (plasmashell) dies."""
-    try:
-        libc = ctypes.CDLL("libc.so.6")
-        libc.prctl(1, signal.SIGTERM) # 1 is PR_SET_PDEATHSIG
-    except Exception:
-        pass
-
 class DesktopActionsService(dbus.service.Object):
     def __init__(self):
-        try:
-            self.bus = dbus.SessionBus()
-            self.bus_name = dbus.service.BusName('io.github.divinae.taskline.DesktopActions', bus=self.bus, do_not_queue=True)
-            dbus.service.Object.__init__(self, self.bus_name, '/DesktopActions')
-            print("DesktopActionsService ready", flush=True)
-        except dbus.exceptions.NameExistsException:
-            # Another task manager instance already runs the service; it serves everyone.
-            print("DesktopActionsService already running", flush=True)
-            sys.exit(0)
-        except Exception as e:
-            print(f"DesktopActionsService error: {e}", file=sys.stderr)
-            sys.exit(1)
+        # If another task manager instance already runs the service, this one exits: it serves everyone.
+        self.bus, self.bus_name = export_service(
+            self, 'io.github.divinae.taskline.DesktopActions', '/DesktopActions',
+            ready_msg="DesktopActionsService ready",
+            running_msg="DesktopActionsService already running",
+            error_prefix="DesktopActionsService error")
 
     @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='sbii', out_signature='s')
     def Query(self, launcher_url, show_history, limit, app_pid):
@@ -763,21 +804,12 @@ class DesktopActionsService(dbus.service.Object):
         
         browser_history = []
         if desktop_path and show_history:
-            d_lower = os.path.basename(desktop_path).lower()
-            if "firefox" in d_lower or "ffpwa" in d_lower:
+            if is_firefox_desktop(desktop_path):
                 browser_history = get_firefox_recent(limit, app_pid)
-            elif "chrome" in d_lower:
-                browser_history = get_chromium_recent("chrome", limit, app_pid)
-            elif "brave" in d_lower:
-                browser_history = get_chromium_recent("brave", limit, app_pid)
-            elif "vivaldi" in d_lower:
-                browser_history = get_chromium_recent("vivaldi", limit, app_pid)
-            elif "chromium" in d_lower:
-                browser_history = get_chromium_recent("chromium", limit, app_pid)
-            elif "edge" in d_lower:
-                browser_history = get_chromium_recent("edge", limit, app_pid)
-            elif "opera" in d_lower:
-                browser_history = get_chromium_recent("opera", limit, app_pid)
+            else:
+                chromium = chromium_browser_for(desktop_path)
+                if chromium:
+                    browser_history = get_chromium_recent(chromium, limit, app_pid)
         
         raw_recent = get_recent_documents(desktop_path) if desktop_path else []
         
@@ -1031,9 +1063,30 @@ def url_host(url):
     return host[4:] if host.startswith("www.") else host
 
 
+# desktop path -> ((st_mtime_ns, st_size), host); WebAppTracks asks for every task every few
+# seconds while media plays, so a desktop file is only parsed again after it changed
+_web_app_host_cache = {}
+
+
 def web_app_host(desktop_path):
     """Host of a browser web app (Exec ... --app=URL / --app URL), or "" for normal apps."""
-    exec_cmd = get_desktop_exec(desktop_path) if desktop_path else None
+    if not desktop_path:
+        return ""
+    try:
+        st = os.stat(desktop_path)
+    except OSError:
+        return ""
+    signature = (st.st_mtime_ns, st.st_size)
+    cached = _web_app_host_cache.get(desktop_path)
+    if cached and cached[0] == signature:
+        return cached[1]
+    host = _parse_web_app_host(desktop_path)
+    _web_app_host_cache[desktop_path] = (signature, host)
+    return host
+
+
+def _parse_web_app_host(desktop_path):
+    exec_cmd = get_desktop_exec(desktop_path)
     if not exec_cmd:
         return ""
     try:

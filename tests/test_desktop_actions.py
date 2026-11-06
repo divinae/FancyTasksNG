@@ -7,12 +7,15 @@ Run with: python3 -m unittest discover -s tests
 import importlib.util
 import os
 import sqlite3
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 MODULE_PATH = Path(__file__).resolve().parent.parent / "package/contents/ui/code/desktop_actions.py"
+# The helper imports helper_common from its own directory (on sys.path when run as a script)
+sys.path.insert(0, str(MODULE_PATH.parent))
 spec = importlib.util.spec_from_file_location("desktop_actions", MODULE_PATH)
 da = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(da)
@@ -80,6 +83,18 @@ class DesktopFileTest(unittest.TestCase):
 
     def test_resolve_file_url(self):
         self.assertEqual(da.resolve_launcher_url(self.desktop.as_uri()), str(self.desktop))
+
+    def test_resolve_bare_name(self):
+        self.assertEqual(da.resolve_launcher_url("org.example.App"), str(self.desktop))
+        self.assertEqual(da.resolve_launcher_url("org.example.App.desktop"), str(self.desktop))
+
+    def test_resolve_first_dir_wins(self):
+        user_dir = self.dir / "user"
+        user_dir.mkdir()
+        override = user_dir / "org.example.App.desktop"
+        override.write_text("[Desktop Entry]\nName=Override\n", encoding="utf-8")
+        with mock.patch.object(da, "DESKTOP_DIRS", [str(user_dir), str(self.dir)]):
+            self.assertEqual(da.resolve_launcher_url("applications:org.example.App.desktop"), str(override))
 
     def test_resolve_unknown(self):
         self.assertIsNone(da.resolve_launcher_url("applications:nope.desktop"))
@@ -324,9 +339,46 @@ class WebAppTracksTest(unittest.TestCase):
         result = da.web_app_tracks(["applications:WebApp-Spotify.desktop", "applications:browser.desktop"], players)
         self.assertEqual(result, {"applications:WebApp-Spotify.desktop": {"track": "Gives & Takes", "pid": 42}})
 
+    def test_web_app_host_reread_after_change(self):
+        path = da.resolve_launcher_url("applications:WebApp-Spotify.desktop")
+        self.assertEqual(da.web_app_host(path), "open.spotify.com")
+        Path(path).write_text("[Desktop Entry]\nName=Spotify\nExec=vivaldi-stable --app https://music.example.org/x\n",
+                              encoding="utf-8")
+        st = os.stat(path)
+        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+        self.assertEqual(da.web_app_host(path), "music.example.org")
+        self.assertEqual(da.web_app_host(None), "")
+        self.assertEqual(da.web_app_host(str(Path(path).with_name("missing.desktop"))), "")
+
     def test_url_host(self):
         self.assertEqual(da.url_host("https://www.Example.com/x"), "example.com")
         self.assertEqual(da.url_host(""), "")
+
+
+class BrowserDetectionTest(unittest.TestCase):
+    def test_firefox(self):
+        self.assertTrue(da.is_firefox_desktop("/usr/share/applications/firefox.desktop"))
+        self.assertTrue(da.is_firefox_desktop("/home/u/.local/share/applications/FFPWA-01ABC.desktop"))
+        self.assertFalse(da.is_firefox_desktop("/usr/share/applications/chromium.desktop"))
+
+    def test_chromium_family(self):
+        cases = {
+            "google-chrome.desktop": "chrome",
+            "com.google.Chrome.desktop": "chrome",
+            "brave-browser.desktop": "brave",
+            "vivaldi-stable.desktop": "vivaldi",
+            "org.chromium.Chromium.desktop": "chromium",
+            "microsoft-edge.desktop": "edge",
+            "opera.desktop": "opera",
+            "org.kde.dolphin.desktop": None,
+        }
+        for name, browser in cases.items():
+            self.assertEqual(da.chromium_browser_for(f"/usr/share/applications/{name}"), browser, name)
+
+    def test_match_order(self):
+        # Same precedence as the original if/elif chain: chrome, brave, vivaldi, chromium, edge, opera
+        self.assertEqual(list(da.CHROMIUM_PROFILE_ROOTS), ["chrome", "brave", "vivaldi", "chromium", "edge", "opera"])
+        self.assertEqual(da.chromium_browser_for("/x/brave-chromium.desktop"), "brave")
 
 
 class ParentPidsTest(unittest.TestCase):
