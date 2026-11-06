@@ -1,12 +1,9 @@
 name: Publish to KDE Store
 
-# Runs automatically on every published GitHub Release, and can also be
-# triggered manually (e.g. to re-run for a past tag, or with dry_run=true to
-# check without publishing).
+# Manual only: the store entry this targets is Fancy Tasks NG's, not Taskline's.
+# Run it (dry_run first) once Taskline has its own store product and secrets.
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:

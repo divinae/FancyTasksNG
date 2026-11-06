@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-06
+
 **Renamed to Taskline** (widget ID `io.github.divinae.taskline`, D-Bus names `io.github.divinae.taskline.*`), a fork of Fancy Tasks NG 2.2.0 with selected 2.3.0 changes ported. It can be installed next to Fancy Tasks NG without conflicts; settings exported from Fancy Tasks NG can be imported.
 
 ### Added
@@ -36,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Translations:** The widget is now English-only. The translation catalogs, the `make translate` target and the translation steps in the build, install and preview scripts are gone.
 
 ### Changed
+- **Settings:** The settings pages are built from Kirigami Addons form cards (switches, sliders, grouped cards), like System Settings and other modern widgets; the pinned apps page got the same look.
 - **Development:** `make test` now runs the unit tests in `tests/`, the Plasma preview window moved to `make preview`, and `make lint` runs ruff, shellcheck and the config defaults check. A CI workflow runs lint and tests on every push and pull request.
 - **Faster Context Menus:** Browser history is no longer re-copied from the browser's database on every menu open; it is reused until the browser writes new history. Cached menu data is refreshed at most every 15 seconds, and the cache no longer grows without limit.
 - **Native Tooltips:** Tooltips now use the Plasma theme's tooltip frame with its corners, blur and shadow, native sliders and theme fonts. Text is left-aligned like Plasma's own tooltips, and the desktop/activity info sits on the right of the title row.
@@ -43,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Media Controls:** Player controls are now shown in a bar under the thumbnail by default, always visible like in the stock Task Manager (the hover overlay is still available in the settings).
 
 ### Fixed
+- **Context Menu:** Force Quit, Close and the other window actions can no longer hit another app when windows open or close while the menu is open.
+- **Centered and Mirrored Layouts:** Drag and drop, dropped files and the mouse wheel pick the task under the cursor with centered icons, and a drop lands on the side the indicator shows in mirrored, right-to-left and reversed vertical layouts.
+- **Volume:** Scrolling up above 100% no longer drops the volume to 100%, Shift+scroll changes the system volume over pinned apps too, a new task button shows audio that is already playing, and the widget no longer overrides an app's volume with a remembered value.
+- **Media Controls:** A window whose title merely starts with the playing track's name (e.g. "Notes.md" while a song "Notes" plays) no longer gets the player's controls.
+- **Pinned Apps Settings:** A plain click no longer moves an app to the top of the list, and reordering keeps apps pinned to an activity on that activity.
+- **Badges:** A window demanding attention turns its badge red, and apps that report an "applications:" id get their LauncherEntry badge.
+- **Helper:** A frozen media player no longer blocks the helper (and with it menus and badges) for 25 seconds; browser history snapshots are private to the user; Force Quit can't hit a process that reused the app's pid; desktop files follow the spec for escaped Exec lines, OnlyShowIn/NotShowIn and subdirectory ids; apps like Hedgewars are no longer taken for a browser.
 - **From upstream 2.3.0:** "Do not sort" keeps a pinned app in its slot when its last window closes; the drag drop indicator only shows where the drop is possible; no slide delay outside icons-only mode; clicking the track title in a tooltip activates the window; a paused VLC can be resumed; another install of the same app no longer shows this app's audio; Chromium audio helper processes count as their browser; notification sounds no longer light up an app's audio indicator.
 - **Browser Web Apps and Media:** Music played in a browser web app (e.g. a Spotify app run by Vivaldi or Chrome) now shows its player controls on the web app window instead of on the main browser window.
 - **Group Tooltips with Filters:** Closing, activating or dropping files on a window in a group tooltip now targets the right window when the minimized or reverse filters hide some tasks.
