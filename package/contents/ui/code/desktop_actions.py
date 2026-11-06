@@ -15,6 +15,7 @@ Each recentDocs item: {"name": str, "url": str, "icon": str}
 """
 
 import configparser
+import contextlib
 import hashlib
 import json
 import os
@@ -27,6 +28,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import signal
+import time
 
 import dbus
 import dbus.service
@@ -88,14 +90,51 @@ def read_desktop_file(path):
     return cp if cp.has_section("Desktop Entry") else None
 
 
+_DESKTOP_STRING_ESCAPES = {"s": " ", "n": "\n", "t": "\t", "r": "\r", "\\": "\\"}
+
+
+def unescape_desktop_string(value):
+    """Undo the Desktop Entry string escapes (\\s \\n \\t \\r \\\\). Other backslash sequences
+    are kept as they are: in Exec they belong to the quoting rules applied afterwards."""
+    return re.sub(r"\\(.)", lambda m: _DESKTOP_STRING_ESCAPES.get(m.group(1), m.group(0)), value)
+
+
+def _find_in_subdirs(directory, name):
+    """Path of desktop file ID name under directory where each '-' may stand for a
+    subdirectory separator (kde4-foo.desktop -> kde4/foo.desktop), or None."""
+    start = 0
+    while True:
+        dash = name.find("-", start)
+        if dash < 0:
+            return None
+        sub = os.path.join(directory, name[:dash])
+        if os.path.isdir(sub):
+            rest = name[dash + 1:]
+            candidate = os.path.join(sub, rest)
+            if os.path.isfile(candidate):
+                return candidate
+            found = _find_in_subdirs(sub, rest)
+            if found:
+                return found
+        start = dash + 1
+
+
 def _find_in_desktop_dirs(name):
-    """First DESKTOP_DIRS entry holding name (".desktop" appended if missing), or None."""
+    """First DESKTOP_DIRS entry holding name (".desktop" appended if missing), or None.
+    A desktop file ID with '-' may also name a file in a subdirectory (kde4-foo.desktop ->
+    applications/kde4/foo.desktop); that is only tried when no dir has it directly."""
     if not name.endswith(".desktop"):
         name += ".desktop"
     for d in DESKTOP_DIRS:
         candidate = os.path.join(d, name)
         if os.path.isfile(candidate):
             return candidate
+    if "/" in name or "-" not in name:
+        return None
+    for d in DESKTOP_DIRS:
+        found = _find_in_subdirs(d, name)
+        if found:
+            return found
     return None
 
 
@@ -169,7 +208,8 @@ def get_jump_list_actions(desktop_path):
             name = cp.get(section, "Name", fallback="")
             
         icon = cp.get(section, "Icon", fallback="")
-        exec_cmd = cp.get(section, "Exec", fallback="")
+        # String escapes are undone here; expand_exec applies the Exec quoting rules
+        exec_cmd = unescape_desktop_string(cp.get(section, "Exec", fallback=""))
 
         if not name:
             continue
@@ -402,19 +442,28 @@ def find_active_db_from_proc(db_name, app_pid=0):
 
 
 def snapshot_sqlite(db_path, temp_db):
-    """Copy a live SQLite DB plus its -wal sidecar so uncheckpointed rows are included."""
-    shutil.copy2(db_path, temp_db)
+    """Copy a live SQLite DB plus its -wal sidecar so uncheckpointed rows are included.
+    copyfile, not copy2: the copy must not take over the source's permission bits."""
+    shutil.copyfile(db_path, temp_db)
     wal = Path(f"{db_path}-wal")
     if wal.is_file():
-        shutil.copy2(wal, f"{temp_db}-wal")
+        shutil.copyfile(wal, f"{temp_db}-wal")
 
 
-def remove_sqlite_snapshot(temp_db):
-    for path in (Path(temp_db), Path(f"{temp_db}-wal"), Path(f"{temp_db}-shm")):
-        try:
-            path.unlink()
-        except OSError:
-            pass
+@contextlib.contextmanager
+def sqlite_snapshot(db_path, prefix):
+    """Yield the path of a private copy of a live SQLite DB (see snapshot_sqlite).
+
+    The copy, its -wal and the -shm SQLite creates live in a fresh mkdtemp() dir (mode 0700),
+    so browsing history is never readable by other users; the whole dir is removed afterwards.
+    """
+    temp_dir = tempfile.mkdtemp(prefix=prefix)
+    try:
+        temp_db = Path(temp_dir) / "snapshot.sqlite"
+        snapshot_sqlite(db_path, temp_db)
+        yield temp_db
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 FIREFOX_HISTORY_SQL = """
@@ -453,7 +502,7 @@ FIREFOX_PROFILE_ROOTS = [
 ]
 
 # Chromium-family browser -> its config dirs. The order is the detection order of
-# chromium_browser_for(): the first key found in the desktop file name wins.
+# chromium_browser_for(): the first key that is a word of the desktop file name wins.
 CHROMIUM_PROFILE_ROOTS = {
     "chrome": [
         Path.home() / ".config" / "google-chrome",
@@ -482,16 +531,38 @@ CHROMIUM_PROFILE_ROOTS = {
 }
 
 
+def _desktop_name_tokens(desktop_path):
+    """Lowercased words of a desktop file name split on - . _ and spaces, without ".desktop":
+    "com.microsoft.Edge.desktop" -> {"com", "microsoft", "edge"}. Whole words, so e.g.
+    hedgewars.desktop or org.kde.knowledge.desktop don't look like Edge."""
+    name = os.path.basename(desktop_path).lower()
+    if name.endswith(".desktop"):
+        name = name[:-len(".desktop")]
+    return {token for token in re.split(r"[-._ ]+", name) if token}
+
+
 def is_firefox_desktop(desktop_path):
     """Firefox or a Firefox PWA (firefoxpwa "FFPWA-..." desktop files)."""
-    name = os.path.basename(desktop_path).lower()
-    return "firefox" in name or "ffpwa" in name
+    tokens = _desktop_name_tokens(desktop_path)
+    return "firefox" in tokens or "ffpwa" in tokens
 
 
 def chromium_browser_for(desktop_path):
-    """CHROMIUM_PROFILE_ROOTS key matching a desktop file name, or None."""
-    name = os.path.basename(desktop_path).lower()
-    return next((browser for browser in CHROMIUM_PROFILE_ROOTS if browser in name), None)
+    """CHROMIUM_PROFILE_ROOTS key matching a word of a desktop file name, or None."""
+    tokens = _desktop_name_tokens(desktop_path)
+    return next((browser for browser in CHROMIUM_PROFILE_ROOTS if browser in tokens), None)
+
+
+# A page without a favicon is looked up again after this long (the browser may have one by then)
+FAVICON_RETRY_SECONDS = 24 * 60 * 60
+
+
+def _fresh_negative_cache(path, now):
+    """Whether a ".failed" favicon marker exists and is younger than FAVICON_RETRY_SECONDS."""
+    try:
+        return now - path.stat().st_mtime < FAVICON_RETRY_SECONDS
+    except OSError:
+        return False
 
 
 def extract_favicons(history_items, favicons_db_path, browser_type):
@@ -501,6 +572,7 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
 
     cache_dir = Path.home() / ".cache" / "taskline" / "favicons"
     cache_dir.mkdir(parents=True, exist_ok=True)
+    now = time.time()
 
     urls_to_query = []
     for item in history_items:
@@ -514,7 +586,7 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
         
         if cached_png.exists():
             item["icon"] = f"file://{cached_png}"
-        elif cached_failed.exists():
+        elif _fresh_negative_cache(cached_failed, now):
             item["icon"] = "internet-services"
         else:
             urls_to_query.append((url, item, cached_png, cached_failed))
@@ -522,42 +594,35 @@ def extract_favicons(history_items, favicons_db_path, browser_type):
     if not urls_to_query:
         return history_items
 
-    fd, temp_path = tempfile.mkstemp(prefix="favicons_temp.sqlite")
-    os.close(fd)
-    temp_db = Path(temp_path)
-
     try:
-        snapshot_sqlite(favicons_db_path, temp_db)
-        conn = sqlite3.connect(temp_db)
-        cursor = conn.cursor()
+        with sqlite_snapshot(favicons_db_path, "taskline-favicons-") as temp_db, \
+                contextlib.closing(sqlite3.connect(temp_db)) as conn:
+            cursor = conn.cursor()
+            query = FIREFOX_FAVICON_SQL if browser_type == "firefox" else CHROMIUM_FAVICON_SQL
+            for url, item, cached_png, cached_failed in urls_to_query:
+                cursor.execute(query, (url,))
+                row = cursor.fetchone()
+                blob = row[0] if row else None
 
-        query = FIREFOX_FAVICON_SQL if browser_type == "firefox" else CHROMIUM_FAVICON_SQL
-        for url, item, cached_png, cached_failed in urls_to_query:
-            cursor.execute(query, (url,))
-            row = cursor.fetchone()
-            blob = row[0] if row else None
-
-            if blob:
-                try:
-                    with open(cached_png, "wb") as f:
-                        f.write(blob)
-                    item["icon"] = f"file://{cached_png}"
-                except Exception as e:
-                    print(f"desktop_actions: failed to write favicon cache: {e}", file=sys.stderr)
+                if blob:
+                    try:
+                        with open(cached_png, "wb") as f:
+                            f.write(blob)
+                        item["icon"] = f"file://{cached_png}"
+                        cached_failed.unlink(missing_ok=True)
+                    except Exception as e:
+                        print(f"desktop_actions: failed to write favicon cache: {e}", file=sys.stderr)
+                        item["icon"] = "internet-services"
+                else:
+                    try:
+                        # (Re)written so an expired entry starts a new FAVICON_RETRY_SECONDS period
+                        with open(cached_failed, "w") as f:
+                            f.write("")
+                    except Exception:
+                        pass
                     item["icon"] = "internet-services"
-            else:
-                try:
-                    with open(cached_failed, "w") as f:
-                        f.write("")
-                except Exception:
-                    pass
-                item["icon"] = "internet-services"
-
-        conn.close()
     except Exception as e:
         print(f"desktop_actions: extract_favicons error: {e}", file=sys.stderr)
-    finally:
-        remove_sqlite_snapshot(temp_db)
 
     return history_items
 
@@ -577,23 +642,41 @@ def get_firefox_recent(limit=10, app_pid=0):
 
 def _newest_firefox_places():
     """places.sqlite of the most recently written Firefox profile, or None."""
-    candidates = []
+    candidates = {}  # places.sqlite path -> mtime
     for d in FIREFOX_PROFILE_ROOTS:
-        if d.exists() and (d / "profiles.ini").exists():
+        ini = d / "profiles.ini"
+        if not ini.is_file():
+            continue
+        # No interpolation: a '%' in a profile path must not break parsing
+        config = configparser.ConfigParser(interpolation=None, strict=False)
+        config.optionxform = str
+        try:
+            config.read(ini, encoding="utf-8")
+        except (configparser.Error, OSError, UnicodeDecodeError):
+            continue
+        for section in config.sections():
             try:
-                config = configparser.ConfigParser()
-                config.read(d / "profiles.ini")
-                for section in config.sections():
-                    p_dir = config[section].get("Path") if section.startswith("Profile") else config[section].get("Default") if section.startswith("Install") else None
-                    if p_dir:
-                        full_path = d / p_dir if config[section].get("IsRelative", "1") == "1" else Path(p_dir)
-                        if (full_path / "places.sqlite").exists():
-                            candidates.append(full_path / "places.sqlite")
-            except Exception: continue
+                entry = config[section]
+                if section.startswith("Profile"):
+                    p_dir = entry.get("Path")
+                    relative = entry.get("IsRelative", "1").strip() == "1"
+                elif section.startswith("Install"):
+                    # Install sections only hold a relative path to the default profile
+                    p_dir = entry.get("Default")
+                    relative = True
+                else:
+                    continue
+                if not p_dir:
+                    continue
+                places = (d / p_dir if relative else Path(p_dir)) / "places.sqlite"
+                # A profile may be deleted between listing and stat: skip it then
+                candidates[places] = places.stat().st_mtime
+            except (configparser.Error, OSError, ValueError):
+                continue
 
     if not candidates:
         return None
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    return max(candidates, key=candidates.get)
 
 
 def get_chromium_recent(browser_name, limit=10, app_pid=0):
@@ -650,38 +733,33 @@ def fetch_sqlite_history(db_path, query, temp_name, limit=10):
         return [dict(item) for item in cached[1]]
 
     docs = []
-    # Use tempfile to avoid collisions and permission issues in /tmp
-    fd, temp_path = tempfile.mkstemp(prefix=temp_name)
-    os.close(fd)
-    temp_db = Path(temp_path)
-    
     try:
-        snapshot_sqlite(db_path, temp_db)
-        conn = sqlite3.connect(temp_db)
-        cursor = conn.cursor()
-        cursor.execute(query, (limit * 3,))
-        
-        seen_urls = set()
-        seen_titles = set()
-        for url, title in cursor.fetchall():
-            norm_url = url.split('#')[0].rstrip('/')
-            if norm_url in seen_urls or title in seen_titles:
-                continue
-            seen_urls.add(norm_url)
-            seen_titles.add(title)
-            docs.append({"name": title, "url": url, "icon": "internet-services", "mimeType": "text/html"})
-            if len(docs) >= limit: break
-        conn.close()
+        # Private temp dir (see sqlite_snapshot): avoids collisions and keeps history unreadable to others
+        with sqlite_snapshot(db_path, f"taskline-{temp_name}-") as temp_db, \
+                contextlib.closing(sqlite3.connect(temp_db)) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (limit * 3,))
+
+            seen_urls = set()
+            seen_titles = set()
+            for url, title in cursor.fetchall():
+                norm_url = url.split('#')[0].rstrip('/')
+                if norm_url in seen_urls or title in seen_titles:
+                    continue
+                seen_urls.add(norm_url)
+                seen_titles.add(title)
+                docs.append({"name": title, "url": url, "icon": "internet-services", "mimeType": "text/html"})
+                if len(docs) >= limit: break
         _history_cache[cache_key] = (signature, [dict(item) for item in docs])
     except Exception as e:
         print(f"desktop_actions: fetch_history error ({db_path}): {e}", file=sys.stderr)
-    finally:
-        remove_sqlite_snapshot(temp_db)
     return docs
 
 
 def clear_recent_documents(desktop_path):
-    """Clear recent documents for this application from both score cache and event history."""
+    """Clear recent documents for this application from both score cache and event history.
+    ResourceLink rows are left alone: they are resources the user linked (pinned) to an
+    activity, not usage history."""
     if not KACTIVITIES_DB.is_file():
         return False
 
@@ -709,16 +787,10 @@ def clear_recent_documents(desktop_path):
                 DELETE FROM ResourceEvent 
                 WHERE initiatingAgent = ? AND usedActivity = ?
             """, (storage_id, activity))
-            
-            # 3. Clear the resource links (this is likely what was missing for full reset)
-            cur.execute("""
-                DELETE FROM ResourceLink 
-                WHERE initiatingAgent = ? AND usedActivity = ?
-            """, (storage_id, activity))
-            
+
             conn.commit()
-            # Ensure changes are written and visible to others
-            cur.execute("PRAGMA wal_checkpoint(FULL)")
+            # Checkpoint what it can without waiting on (or blocking) kactivitymanagerd's readers/writers
+            cur.execute("PRAGMA wal_checkpoint(PASSIVE)")
         
         # Notify the daemon that stats have changed via D-Bus
         try:
@@ -890,26 +962,7 @@ class DesktopActionsService(dbus.service.Object):
     @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='i', out_signature='s')
     def KillApp(self, pid):
         """Force quit an app: SIGTERM now, SIGKILL after 3 s if it is still running."""
-        # Never this helper, its parent (plasmashell) or init
-        error = kill_app_error(pid, protected_pids=(os.getpid(), os.getppid()))
-        if error:
-            return f"ERROR: {error}"
-        pid = int(pid)
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except OSError as e:
-            return f"ERROR: {e}"
-
-        def kill_if_alive():
-            if kill_app_error(pid) is None:
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except OSError:
-                    pass
-            return False  # one-shot GLib timeout
-
-        GLib.timeout_add(3000, kill_if_alive)
-        return "OK"
+        return force_quit(pid, protected_pids=(os.getpid(), os.getppid()))
 
     @dbus.service.method('io.github.divinae.taskline.DesktopActions', in_signature='i', out_signature='i')
     def PanelVisibility(self, containment_id):
@@ -960,6 +1013,9 @@ class DesktopActionsService(dbus.service.Object):
 
 def expand_exec(exec_cmd, url=None):
     """Split a desktop entry Exec line into argv and expand its field codes.
+
+    exec_cmd must already have the Desktop Entry string escapes undone (get_desktop_exec and
+    get_jump_list_actions do that); the split here applies the Exec quoting rules.
 
     The URL is inserted as a single argument (never re-parsed), %f/%F get a local
     path for file:// URLs, and field codes we don't support (%i, %c, %k, ...) are dropped.
@@ -1105,12 +1161,14 @@ def mpris_url_tracks(bus):
     """Playing MPRIS players that report the URL they play from (browsers):
     list of {"host", "track", "pid"} where pid is the player's D-Bus connection process."""
     players = []
-    bus_obj = bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus")
+    # introspect=False: get_object would otherwise introspect synchronously with libdbus' 25 s
+    # default timeout, and a hung player would block this helper's only mainloop.
+    bus_obj = bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus", introspect=False)
     for name in bus.list_names():
         if not str(name).startswith("org.mpris.MediaPlayer2."):
             continue
         try:
-            player = bus.get_object(name, "/org/mpris/MediaPlayer2")
+            player = bus.get_object(name, "/org/mpris/MediaPlayer2", introspect=False)
             props = player.GetAll("org.mpris.MediaPlayer2.Player",
                                   dbus_interface="org.freedesktop.DBus.Properties", timeout=1)
             pid = int(bus_obj.GetConnectionUnixProcessID(name, dbus_interface="org.freedesktop.DBus", timeout=1))
@@ -1146,10 +1204,30 @@ def autostart_path(desktop_path, autostart_dir=None, app_dirs=None):
     return Path(autostart_dir or user_autostart_dir()) / desktop_file_id(desktop_path, app_dirs)
 
 
+def _desktop_list(value):
+    """Lowercased items of a ';'-separated desktop entry list."""
+    return {item.strip().lower() for item in (value or "").split(";") if item.strip()}
+
+
+def _shown_in_current_desktop(entry, current_desktop=None):
+    """OnlyShowIn/NotShowIn against $XDG_CURRENT_DESKTOP (':'-separated). When the current
+    desktop is unknown the entry counts as shown, rather than guessing."""
+    if current_desktop is None:
+        current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    desktops = [d.strip().lower() for d in current_desktop.split(":") if d.strip()]
+    if not desktops:
+        return True
+    if any(d in _desktop_list(entry.get("NotShowIn")) for d in desktops):
+        return False
+    only = _desktop_list(entry.get("OnlyShowIn"))
+    return not only or any(d in only for d in desktops)
+
+
 def _entry_enabled(cp):
     entry = cp["Desktop Entry"]
     return (entry.get("Hidden", "false").strip().lower() != "true"
-            and entry.get("X-GNOME-Autostart-enabled", "true").strip().lower() != "false")
+            and entry.get("X-GNOME-Autostart-enabled", "true").strip().lower() != "false"
+            and _shown_in_current_desktop(entry))
 
 
 def _set_entry_keys(text, changes):
@@ -1245,9 +1323,73 @@ def set_autostart(desktop_path, enabled, autostart_dir=None, system_dirs=None, a
             if is_autostart(desktop_path, **kw):
                 # Still started by a system-wide entry: override it
                 _write_text(user, _set_entry_keys(source_text, {AUTOSTART_MARKER: "true", "Hidden": "true"}))
-    except OSError as e:
+    except (OSError, ValueError) as e:  # ValueError covers UnicodeDecodeError (non-UTF-8 files)
         print(f"desktop_actions: autostart error: {e}", file=sys.stderr)
     return is_autostart(desktop_path, **kw)
+
+
+def force_quit(pid, protected_pids=(), schedule=None, delay_ms=3000):
+    """SIGTERM pid now and SIGKILL it after delay_ms if it still runs; "OK" or "ERROR: ...".
+
+    The process is pinned with a pidfd before it is signalled, so the delayed SIGKILL can only
+    hit that same process, never an unrelated one that got its pid after it exited. Without
+    pidfd support (old kernel/Python) the pid is re-checked before SIGKILL instead.
+    protected_pids (this helper, plasmashell) are never signalled.
+    """
+    schedule = schedule or GLib.timeout_add
+    # Never this helper, its parent (plasmashell) or init
+    error = kill_app_error(pid, protected_pids=protected_pids)
+    if error:
+        return f"ERROR: {error}"
+    pid = int(pid)
+
+    pidfd = None
+    pidfd_open = getattr(os, "pidfd_open", None)
+    send = getattr(signal, "pidfd_send_signal", None)
+    if pidfd_open and send:
+        try:
+            pidfd = pidfd_open(pid)
+        except ProcessLookupError:
+            return "ERROR: no such process"
+        except OSError:
+            pidfd = None  # e.g. ENOSYS: fall back to plain pids
+
+    if pidfd is not None:
+        # Check again now that the process is pinned: the pid may have been reused meanwhile
+        error = kill_app_error(pid, protected_pids=protected_pids)
+        if error:
+            os.close(pidfd)
+            return f"ERROR: {error}"
+        try:
+            send(pidfd, signal.SIGTERM)
+        except OSError as e:
+            os.close(pidfd)
+            return f"ERROR: {e}"
+
+        def kill_if_alive():
+            try:
+                send(pidfd, signal.SIGKILL)
+            except OSError:
+                pass  # already exited (ESRCH)
+            finally:
+                os.close(pidfd)
+            return False  # one-shot GLib timeout
+    else:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError as e:
+            return f"ERROR: {e}"
+
+        def kill_if_alive():
+            if kill_app_error(pid, protected_pids=protected_pids) is None:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            return False  # one-shot GLib timeout
+
+    schedule(delay_ms, kill_if_alive)
+    return "OK"
 
 
 def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):
@@ -1270,7 +1412,9 @@ def kill_app_error(pid, proc_root="/proc", own_uid=None, protected_pids=()):
 def get_desktop_exec(desktop_path):
     """Helper to get the Exec line from a desktop file."""
     cp = read_desktop_file(desktop_path)
-    return cp["Desktop Entry"].get("Exec") if cp else None
+    exec_cmd = cp["Desktop Entry"].get("Exec") if cp else None
+    # String escapes first; the Exec quoting rules are applied when it is split (expand_exec)
+    return unescape_desktop_string(exec_cmd) if exec_cmd is not None else None
 
 def main():
     set_pdeathsig()

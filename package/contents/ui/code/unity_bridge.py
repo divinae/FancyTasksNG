@@ -41,7 +41,9 @@ sender_apps = {}
 
 def emit_state(appId):
     props = app_state.get(appId, {})
-    final_count = int(props.get("count", 0)) if props.get("count-visible", True) else 0
+    # Per the LauncherEntry spec count-visible and progress-visible default to false; a hidden
+    # count is sent as 0, which BadgeManager treats as "no LauncherEntry badge"
+    final_count = int(props.get("count", 0)) if props.get("count-visible", False) else 0
     final_progress = float(props.get("progress", 0.0)) if props.get("progress-visible", False) else -1.0
     urgent = bool(props.get("urgent", False))
 

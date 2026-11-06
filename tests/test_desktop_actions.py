@@ -48,6 +48,35 @@ class ExpandExecTest(unittest.TestCase):
         self.assertEqual(da.expand_exec('sh -c "echo hi"'), ["sh", "-c", "echo hi"])
 
 
+class DesktopStringEscapeTest(unittest.TestCase):
+    def test_unescape(self):
+        self.assertEqual(da.unescape_desktop_string(r"a\sb\tc\nd\re\\f"), "a b\tc\nd\re\\f")
+        # Not string escapes: left for the Exec quoting rules
+        self.assertEqual(da.unescape_desktop_string(r'\"x\$'), r'\"x\$')
+
+    def test_plain_exec_unchanged(self):
+        self.assertEqual(da.unescape_desktop_string("app --new-window %U"), "app --new-window %U")
+
+    def _exec_from_file(self, exec_line):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.desktop"
+            path.write_text("[Desktop Entry]\nName=X\nExec=" + exec_line + "\nActions=a;\n"
+                            "[Desktop Action a]\nName=A\nExec=" + exec_line + "\n", encoding="utf-8")
+            exec_cmd = da.get_desktop_exec(str(path))
+            self.assertEqual(da.get_jump_list_actions(str(path))[0]["exec"], exec_cmd)
+            return da.expand_exec(exec_cmd)
+
+    def test_escaped_quote_in_quoted_argument(self):
+        # Exec=sh -c "echo \\"a b\\"": string unescape first (\\ -> \), then the quoting rules
+        self.assertEqual(self._exec_from_file('sh -c "echo \\\\"a b\\\\""'), ["sh", "-c", 'echo "a b"'])
+
+    def test_escaped_space_and_plain_exec(self):
+        # \s is a plain space after unescaping: it splits unless quoted
+        self.assertEqual(self._exec_from_file(r'app "--title=a\sb"'), ["app", "--title=a b"])
+        self.assertEqual(self._exec_from_file(r"app a\sb"), ["app", "a", "b"])
+        self.assertEqual(self._exec_from_file("app --new-window"), ["app", "--new-window"])
+
+
 class DesktopFileTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -95,6 +124,18 @@ class DesktopFileTest(unittest.TestCase):
         override.write_text("[Desktop Entry]\nName=Override\n", encoding="utf-8")
         with mock.patch.object(da, "DESKTOP_DIRS", [str(user_dir), str(self.dir)]):
             self.assertEqual(da.resolve_launcher_url("applications:org.example.App.desktop"), str(override))
+
+    def test_resolve_subdirectory_id(self):
+        sub = self.dir / "kde4"
+        sub.mkdir()
+        (sub / "foo.desktop").write_text("[Desktop Entry]\nName=Foo\n", encoding="utf-8")
+        self.assertEqual(da.resolve_launcher_url("applications:kde4-foo.desktop"), str(sub / "foo.desktop"))
+        self.assertEqual(da.resolve_launcher_url("kde4-foo"), str(sub / "foo.desktop"))
+        # A direct file wins over the subdirectory reading
+        direct = self.dir / "kde4-foo.desktop"
+        direct.write_text("[Desktop Entry]\nName=Direct\n", encoding="utf-8")
+        self.assertEqual(da.resolve_launcher_url("applications:kde4-foo.desktop"), str(direct))
+        self.assertIsNone(da.resolve_launcher_url("applications:kde4-bar.desktop"))
 
     def test_resolve_unknown(self):
         self.assertIsNone(da.resolve_launcher_url("applications:nope.desktop"))
@@ -168,12 +209,56 @@ class HistoryTest(unittest.TestCase):
         second = da.fetch_sqlite_history(self.db, self.QUERY, "test", limit=10)
         self.assertEqual(second[0]["icon"], "internet-services")
 
-    def test_snapshot_cleanup(self):
-        temp = Path(self.tmp.name) / "snap"
-        da.snapshot_sqlite(self.db, temp)
-        self.assertTrue(temp.exists())
-        da.remove_sqlite_snapshot(temp)
-        self.assertFalse(temp.exists())
+    def test_snapshot_private_and_cleaned_up(self):
+        os.chmod(self.db, 0o644)
+        with da.sqlite_snapshot(self.db, "taskline-test-") as temp:
+            self.assertTrue(temp.exists())
+            # The dir holding the copy (and its -wal/-shm) is private to this user
+            self.assertEqual(os.stat(temp.parent).st_mode & 0o777, 0o700)
+            temp_dir = temp.parent
+        self.assertFalse(temp_dir.exists())
+
+    def test_snapshot_cleaned_up_on_error(self):
+        with self.assertRaises(RuntimeError):
+            with da.sqlite_snapshot(self.db, "taskline-test-") as temp:
+                temp_dir = temp.parent
+                raise RuntimeError
+        self.assertFalse(temp_dir.exists())
+
+
+class FaviconNegativeCacheTest(unittest.TestCase):
+    def test_expiry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "x.failed"
+            self.assertFalse(da._fresh_negative_cache(marker, 1000.0))
+            marker.write_text("")
+            now = marker.stat().st_mtime
+            self.assertTrue(da._fresh_negative_cache(marker, now + 60))
+            self.assertFalse(da._fresh_negative_cache(marker, now + da.FAVICON_RETRY_SECONDS + 1))
+
+
+class FirefoxProfilesTest(unittest.TestCase):
+    def test_newest_places(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, mtime in (("old.default", 1000), ("new%20profile", 2000)):
+                (root / name).mkdir()
+                (root / name / "places.sqlite").write_bytes(b"")
+                os.utime(root / name / "places.sqlite", (mtime, mtime))
+            (root / "profiles.ini").write_text(
+                "[Install4F96D1932A9F858E]\nDefault=old.default\n\n"
+                "[Profile0]\nName=old\nIsRelative=1\nPath=old.default\n\n"
+                "[Profile1]\nName=new %(x)s\nIsRelative=1\nPath=new%20profile\n\n"
+                "[Profile2]\nName=gone\nIsRelative=1\nPath=deleted.profile\n",
+                encoding="utf-8")
+            with mock.patch.object(da, "FIREFOX_PROFILE_ROOTS", [root, root / "missing"]):
+                self.assertEqual(da._newest_firefox_places(), root / "new%20profile" / "places.sqlite")
+
+    def test_no_profiles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "profiles.ini").write_text("garbage without section\n", encoding="utf-8")
+            with mock.patch.object(da, "FIREFOX_PROFILE_ROOTS", [Path(tmp)]):
+                self.assertIsNone(da._newest_firefox_places())
 
 
 class PanelVisibilityTest(unittest.TestCase):
@@ -311,6 +396,26 @@ class AutostartTest(unittest.TestCase):
             self.assertEqual(dirs[0], "/home/x/data/applications")
             self.assertIn("/var/lib/snapd/desktop/applications", dirs)
 
+    def test_non_utf8_source_fails_cleanly(self):
+        self.desktop.write_bytes(b"[Desktop Entry]\nName=App\xff\nExec=app\n")
+        self.assertFalse(da.set_autostart(str(self.desktop), True, **self.kw))
+
+    def test_only_show_in_and_not_show_in(self):
+        self.autostart.mkdir()
+        entry = self.autostart / "org.example.App.desktop"
+        cases = [
+            ("OnlyShowIn=GNOME;\n", "KDE", False),
+            ("OnlyShowIn=GNOME;KDE;\n", "KDE", True),
+            ("OnlyShowIn=GNOME;\n", "ubuntu:GNOME", True),
+            ("NotShowIn=KDE;\n", "KDE", False),
+            ("NotShowIn=GNOME;\n", "KDE", True),
+            ("OnlyShowIn=GNOME;\n", "", True),  # unknown desktop: don't guess
+        ]
+        for line, desktop, expected in cases:
+            entry.write_text("[Desktop Entry]\nName=App\nExec=app\n" + line, encoding="utf-8")
+            with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": desktop}):
+                self.assertEqual(da.is_autostart(str(self.desktop), **self.kw), expected, (line, desktop))
+
     def test_desktop_file_id_from_subdirectory(self):
         sub = self.apps / "kde4" / "foo.desktop"
         self.assertEqual(da.desktop_file_id(str(sub), [str(self.apps)]), "kde4-foo.desktop")
@@ -360,6 +465,9 @@ class BrowserDetectionTest(unittest.TestCase):
         self.assertTrue(da.is_firefox_desktop("/usr/share/applications/firefox.desktop"))
         self.assertTrue(da.is_firefox_desktop("/home/u/.local/share/applications/FFPWA-01ABC.desktop"))
         self.assertFalse(da.is_firefox_desktop("/usr/share/applications/chromium.desktop"))
+        self.assertTrue(da.is_firefox_desktop("/usr/share/applications/org.mozilla.firefox.desktop"))
+        self.assertTrue(da.is_firefox_desktop("/usr/share/applications/firefox-esr.desktop"))
+        self.assertFalse(da.is_firefox_desktop("/usr/share/applications/firefoxish-tool.desktop"))
 
     def test_chromium_family(self):
         cases = {
@@ -370,7 +478,17 @@ class BrowserDetectionTest(unittest.TestCase):
             "org.chromium.Chromium.desktop": "chromium",
             "microsoft-edge.desktop": "edge",
             "opera.desktop": "opera",
+            "com.opera.Opera.desktop": "opera",
+            "com.microsoft.Edge.desktop": "edge",
+            "microsoft-edge-beta.desktop": "edge",
+            "chromium-browser.desktop": "chromium",
+            "com.brave.Browser.desktop": "brave",
             "org.kde.dolphin.desktop": None,
+            # Substrings of other words are not browsers
+            "hedgewars.desktop": None,
+            "org.kde.knowledge.desktop": None,
+            "cooperate.desktop": None,
+            "chromeless.desktop": None,
         }
         for name, browser in cases.items():
             self.assertEqual(da.chromium_browser_for(f"/usr/share/applications/{name}"), browser, name)
@@ -379,6 +497,56 @@ class BrowserDetectionTest(unittest.TestCase):
         # Same precedence as the original if/elif chain: chrome, brave, vivaldi, chromium, edge, opera
         self.assertEqual(list(da.CHROMIUM_PROFILE_ROOTS), ["chrome", "brave", "vivaldi", "chromium", "edge", "opera"])
         self.assertEqual(da.chromium_browser_for("/x/brave-chromium.desktop"), "brave")
+
+
+class ForceQuitTest(unittest.TestCase):
+    """Signals are mocked: no real process is ever signalled."""
+
+    def setUp(self):
+        self.scheduled = []
+        patches = [
+            mock.patch.object(da, "kill_app_error", return_value=None),
+            mock.patch.object(da.os, "pidfd_open", create=True, return_value=99),
+            mock.patch.object(da.signal, "pidfd_send_signal", create=True),
+            mock.patch.object(da.os, "close"),
+            mock.patch.object(da.os, "kill"),
+        ]
+        self.error, self.pidfd_open, self.send, self.close, self.kill = [p.start() for p in patches]
+        for p in patches:
+            self.addCleanup(p.stop)
+
+    def schedule(self, delay, fn):
+        self.scheduled.append(fn)
+
+    def test_pidfd_used_for_both_signals(self):
+        self.assertEqual(da.force_quit(1234, schedule=self.schedule), "OK")
+        self.pidfd_open.assert_called_once_with(1234)
+        self.send.assert_called_once_with(99, da.signal.SIGTERM)
+        self.scheduled[0]()
+        self.send.assert_called_with(99, da.signal.SIGKILL)
+        self.close.assert_called_once_with(99)
+        self.kill.assert_not_called()
+
+    def test_exited_process_is_fine(self):
+        da.force_quit(1234, schedule=self.schedule)
+        self.send.side_effect = ProcessLookupError
+        self.assertFalse(self.scheduled[0]())
+        self.close.assert_called_once_with(99)
+
+    def test_refused_pid_never_signalled(self):
+        self.error.return_value = "refusing to kill this process"
+        self.assertTrue(da.force_quit(1234, schedule=self.schedule).startswith("ERROR"))
+        self.pidfd_open.assert_not_called()
+        self.send.assert_not_called()
+        self.kill.assert_not_called()
+
+    def test_fallback_without_pidfd(self):
+        self.pidfd_open.side_effect = OSError(38, "ENOSYS")
+        self.assertEqual(da.force_quit(1234, schedule=self.schedule), "OK")
+        self.kill.assert_called_once_with(1234, da.signal.SIGTERM)
+        self.scheduled[0]()
+        self.kill.assert_called_with(1234, da.signal.SIGKILL)
+        self.send.assert_not_called()
 
 
 class ParentPidsTest(unittest.TestCase):
