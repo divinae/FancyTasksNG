@@ -189,10 +189,13 @@ Item {
      */
     function updateData(appId, count, progress, urgent) {
         const strId = String(appId);
-        // Unlike the lookups, "applications:" is kept here
-        const cleanId = _cleanId(strId, true);
+        // The ids the lookups try (_lookupIds), plus the form with an "applications:" prefix
+        const cleanId = _cleanId(strId, false);
+        const prefixedId = _cleanId(strId, true);
 
         const keys = [strId, cleanId, cleanId + ".desktop"];
+        if (prefixedId !== cleanId)
+            keys.push(prefixedId);
         // Handle dot-notation names (e.g. io.github.name)
         if (cleanId.includes(".")) {
             const dots = cleanId.split(".");

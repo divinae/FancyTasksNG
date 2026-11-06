@@ -468,10 +468,7 @@ PlasmoidItem {
         id: internalFilteredTasksModel
         sourceModel: internalTasksModel
         filterRowCallback: (source_row, source_parent) => {
-            // Fast path: none of the filters below is active
-            if (tasks.config.minimizedFilter !== 1 && tasks.config.minimizedFilter !== 2
-                    && !(tasks.config.reverseFilters && (tasks.config.showOnlyCurrentScreen
-                        || tasks.config.showOnlyCurrentDesktop || tasks.config.showOnlyCurrentActivity)))
+            if (!tasks.rowFiltersActive)
                 return true;
 
             const idx = internalTasksModel.index(source_row, 0, source_parent);
@@ -530,7 +527,11 @@ PlasmoidItem {
         }
     }
 
-    readonly property var effectiveTasksModel: (tasks.config.minimizedFilter === 0 && !tasks.config.reverseFilters) ? internalTasksModel : internalFilteredTasksModel
+    // Whether filterRowCallback can reject a row; without that the proxy is bypassed
+    readonly property bool rowFiltersActive: tasks.config.minimizedFilter === 1 || tasks.config.minimizedFilter === 2
+        || (tasks.config.reverseFilters && (tasks.config.showOnlyCurrentScreen
+            || tasks.config.showOnlyCurrentDesktop || tasks.config.showOnlyCurrentActivity))
+    readonly property var effectiveTasksModel: tasks.rowFiltersActive ? internalFilteredTasksModel : internalTasksModel
 
     Timer {
         id: modelUpdateTimer
@@ -681,8 +682,10 @@ PlasmoidItem {
         const urlsKey = JSON.stringify(urls);
         if (launchersIfTasksChanged === true && urlsKey === tasks._webAppLauncherUrlsKey)
             return;
-        tasks._webAppLauncherUrlsKey = urlsKey;
         DesktopActionsManager.webAppLaunchers(urls, list => {
+            // Only a non-empty reply settles the key: an empty one can also mean the helper
+            // isn't on the bus yet, so the periodic refresh keeps asking
+            tasks._webAppLauncherUrlsKey = list.length > 0 ? urlsKey : "";
             if (JSON.stringify(list) !== JSON.stringify(tasks.webAppLaunchers))
                 tasks.webAppLaunchers = list;
         });
@@ -1176,10 +1179,8 @@ PlasmoidItem {
         interval: 10000
         repeat: true
         triggeredOnStart: true
-        // Only needed while something wants attention (attentionPeekWanted); triggeredOnStart
-        // fetches a fresh value as soon as that starts
+        // Polled while the peek is enabled, so the value is already current when attention starts
         running: tasks.config.attentionPeek && !!Plasmoid.containment
-            && !!tasks.tasksModel && (tasks.tasksModel.anyTaskDemandsAttention || BadgeManager.anyUrgent)
         onTriggered: DesktopActionsManager.panelVisibility(Plasmoid.containment.id, value => tasks.panelVisibility = value)
     }
 

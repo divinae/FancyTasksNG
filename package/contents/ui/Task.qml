@@ -813,7 +813,8 @@ Item {
             id: imageColors
             // Only analyze the icon when something shows indicatorColor: dominant-colored
             // indicators, dominant button colorization, or the cursor glow (main.qml)
-            readonly property bool needed: (task.config.indicatorsEnabled && task.config.indicatorDominantColor)
+            readonly property bool needed: (task.config.indicatorsEnabled && task.config.indicatorDominantColor
+                    && !task.config.indicatorAccentColor && !task.config.indicatorTextColor)
                 || (task.config.buttonColorize && task.config.buttonColorizeDominant)
                 || task.config.cursorGlow
             source: needed ? task.model.decoration : ""

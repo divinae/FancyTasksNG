@@ -295,14 +295,17 @@ Loader {
                 
                 property var currentWin: toolTipDelegate.isWin ? toolTipDelegate.windows[0] : undefined
                 
-                // Recreate the instance for the new window: unload now, load again on the next tick
-                function reactivate(): void {
-                    singleInstanceLoader.active = true;
+                // Recreate the instance for the new window: unload now, load again on the next
+                // tick. A child Timer rather than Qt.callLater, so it goes away with the Loader.
+                Timer {
+                    id: reloadTimer
+                    interval: 0
+                    onTriggered: singleInstanceLoader.active = true
                 }
 
                 onCurrentWinChanged: {
                     active = false;
-                    Qt.callLater(singleInstanceLoader.reactivate);
+                    reloadTimer.restart();
                 }
                 
                 sourceComponent: ToolTipInstance {    

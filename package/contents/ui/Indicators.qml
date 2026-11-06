@@ -82,6 +82,10 @@ Flow {
         target: indicatorsFlow.tasksRoot ? indicatorsFlow.tasksRoot.tasksModel : null
         enabled: indicatorsFlow.taskCount > 1
         function onDataChanged(topLeft, bottomRight, roles) {
+            // Cheap test first: an empty role list means "any role"
+            if (roles && roles.length > 0
+                    && !roles.some(role => indicatorsFlow._childStateRoles.indexOf(role) !== -1))
+                return;
             // Only rows that are children of this task
             const model = indicatorsFlow.tasksRoot.tasksModel;
             const changedParent = model.parent(topLeft);
@@ -90,14 +94,6 @@ Flow {
             const own = indicatorsFlow.taskItem.modelIndex();
             if (!own || !own.valid || changedParent.row !== own.row)
                 return;
-            // An empty role list means "any role"
-            if (roles && roles.length > 0) {
-                let relevant = false;
-                for (let i = 0; i < roles.length && !relevant; ++i)
-                    relevant = indicatorsFlow._childStateRoles.indexOf(roles[i]) !== -1;
-                if (!relevant)
-                    return;
-            }
             indicatorsFlow._childStateVersion++;
         }
     }
