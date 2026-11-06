@@ -4,11 +4,11 @@
 
 ## How was this tested?
 
-<!-- e.g. `make test` (plasmawindowed) on Plasma 6.x, Wayland/X11, or manual steps. -->
+<!-- e.g. `make preview` or `make update` on Plasma 6.x, Wayland/X11, `make test` for the helper, or manual steps. -->
 
 ## Checklist
 
-- [ ] Tested locally (`make test`, or `make install` if the change needs a full panel restart to verify)
+- [ ] Tested locally (`make preview`, or `make update` if the change needs the real panel) and `make test` passes
 - [ ] Ran `qmllint` on changed `.qml` files - no new warnings
 - [ ] Updated `CHANGELOG.md` under `[Unreleased]` if this is a user-visible change
 - [ ] New/changed UI strings use `Wrappers.i18n(...)`, not hardcoded text
