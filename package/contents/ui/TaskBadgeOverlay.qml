@@ -25,8 +25,6 @@ Item {
     // This equals the icon at 100% scale, and shrinks with icon scale.
     readonly property real boxW: parent ? parent.width : 0
     readonly property real boxH: parent ? parent.height : 0
-    readonly property real iconCX: icon ? (icon.x + icon.width / 2) : (boxW / 2)
-    readonly property real iconCY: icon ? (icon.y + icon.height / 2) : (boxH / 2)
 
     readonly property real iconR: Math.min(boxW, boxH) / 2
     readonly property real badgeR: iconR / 3

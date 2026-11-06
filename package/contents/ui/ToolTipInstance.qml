@@ -121,27 +121,7 @@ Item {
     required property var virtualDesktops
     required property list<string> activities
 
-    readonly property string calculatedAppName: {
-        let name = "";
-        if (toolTipDelegate.appName && toolTipDelegate.appName.length > 0) {
-            name = toolTipDelegate.appName;
-        } else {
-            const text = display;
-            const versionRegex = /\s+(?:—|-|–)\s+([^\s(—|-|–)]+)\s+(?:—|-|–)\s+v?\d+(?:\.\d+)+.*$/i;
-            const matchVersion = text.match(versionRegex);
-            if (matchVersion && matchVersion[1]) {
-                name = matchVersion[1];
-            } else {
-                const lastSepRegex = /.*(?:—|-|–)\s+(.*)$/;
-                const matchLast = text.match(lastSepRegex);
-                if (matchLast && matchLast[1]) {
-                    name = matchLast[1];
-                }
-            }
-        }
-
-        return name;
-    }
+    readonly property string calculatedAppName: TaskTools.appNameFromTitle(toolTipDelegate.appName, display)
 
     readonly property string title: {
         if (!root.isWin) {
@@ -164,7 +144,6 @@ Item {
         return root.title;
     }
     required property bool isPlayingAudio
-    required property bool isMuted
 
     // Media Controller Loader
     Loader {
@@ -519,7 +498,7 @@ Item {
              source: {
                  const entry = root.currentWinId ? root.thumbnailCache[root.currentWinId] : null;
                  if (!entry) return "";
-                 if (Date.now() - entry.stamp > root.thumbnailCacheTtlMs) return "";
+                 if (Date.now() - entry.stamp > root.toolTipDelegate.thumbnailCacheTtlMs) return "";
                  return entry.result.url;
              }
              

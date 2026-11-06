@@ -133,9 +133,6 @@ DropArea {
         onTriggered: {
             if (itemToHide && itemToHide.toolTipOpen && !dropArea.tasks.isTooltipHovered) {
                 itemToHide.toolTipOpen = false;
-                if (itemToHide.tasksRoot.toolTipAreaItem === itemToHide) {
-                    itemToHide.tasksRoot.toolTipAreaItem = null;
-                }
             }
         }
     }
@@ -203,7 +200,6 @@ DropArea {
             if (parent.hoveredItem.model.IsGroupParent) {
                 parent.hoveredItem.tasksRoot.currentHoveredTask = parent.hoveredItem;
                 parent.hoveredItem.toolTipOpen = true;
-                parent.hoveredItem.tasksRoot.toolTipAreaItem = parent.hoveredItem;
             } else if (!parent.hoveredItem.model.IsLauncher) {
                 dropArea.tasks.tasksModel.requestActivate(parent.hoveredItem.modelIndex());
             }

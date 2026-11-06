@@ -36,7 +36,6 @@ Item {
     readonly property var _trTaskFrame: iconBox.tasksRoot ? iconBox.tasksRoot.taskFrame : null
     
     // Protection for task context
-    readonly property bool _taskHovered: iconBox.taskItem ? iconBox.taskItem.containsMouse : false
     readonly property bool _contextMenuOpen: (iconBox.taskItem && iconBox.taskItem.contextMenu) ? (iconBox.taskItem.contextMenu.status === PlasmaExtras.Menu.Open) : false
     readonly property bool _iconOverflows: iconBox.taskItem ? iconBox.taskItem.iconOverflows : false
     readonly property bool _taskHighlighted: iconBox.taskItem ? iconBox.taskItem.highlighted : false

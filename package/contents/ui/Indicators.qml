@@ -25,13 +25,14 @@ Flow {
 
     readonly property var config: Plasmoid.configuration
 
-    // Max possible cross-axis thickness across all indicator states
-    readonly property int maxIndicatorThickness: Math.max(
-        config.indicatorSize,
-        config.indicatorActiveSize,
-        config.indicatorHoverSize,
-        config.indicatorGroupSize
-    )
+    // Length and thickness of an enlarged (active, attention or hovered) segment: the group
+    // sizes for a group when those are set separately, else the active sizes
+    function enlargedSegment() {
+        const cfg = indicatorsFlow.config;
+        if (indicatorsFlow.taskCount > 1 && cfg.indicatorGroupSeparate)
+            return {length: cfg.indicatorGroupLength, size: cfg.indicatorGroupSize};
+        return {length: cfg.indicatorActiveLength, size: cfg.indicatorActiveSize};
+    }
 
     function getActiveChildIndex() {
         if (!indicatorsFlow.taskItem || !indicatorsFlow.taskItem.model) {
@@ -70,10 +71,35 @@ Flow {
     // Bumped when a child window of this group changes (e.g. gets minimized), so segment
     // styles that depend on per-window state re-evaluate
     property int _childStateVersion: 0
+    // Per-window roles read through _childStateVersion (segmentMinimized, segmentWantsAttention;
+    // IsActive as a safety net for the active segment)
+    readonly property var _childStateRoles: [
+        TaskManager.AbstractTasksModel.IsMinimized,
+        TaskManager.AbstractTasksModel.IsDemandingAttention,
+        TaskManager.AbstractTasksModel.IsActive
+    ]
     Connections {
         target: indicatorsFlow.tasksRoot ? indicatorsFlow.tasksRoot.tasksModel : null
         enabled: indicatorsFlow.taskCount > 1
-        function onDataChanged() { indicatorsFlow._childStateVersion++; }
+        function onDataChanged(topLeft, bottomRight, roles) {
+            // Only rows that are children of this task
+            const model = indicatorsFlow.tasksRoot.tasksModel;
+            const changedParent = model.parent(topLeft);
+            if (!changedParent || !changedParent.valid)
+                return;
+            const own = indicatorsFlow.taskItem.modelIndex();
+            if (!own || !own.valid || changedParent.row !== own.row)
+                return;
+            // An empty role list means "any role"
+            if (roles && roles.length > 0) {
+                let relevant = false;
+                for (let i = 0; i < roles.length && !relevant; ++i)
+                    relevant = indicatorsFlow._childStateRoles.indexOf(roles[i]) !== -1;
+                if (!relevant)
+                    return;
+            }
+            indicatorsFlow._childStateVersion++;
+        }
     }
 
     // Whether the window behind a segment is minimized: per child window in a group (the last
@@ -185,16 +211,10 @@ Flow {
                 let segSize = indicatorsFlow.config.indicatorSize;
 
                 // 1. Active styling (a segment that wants attention is sized like the active one)
-                if (isActiveWindow || attention) {
-                    if (indicatorsFlow.config.indicatorResize) {
-                        if (indicatorsFlow.taskCount > 1 && indicatorsFlow.config.indicatorGroupSeparate) {
-                            segLength = indicatorsFlow.config.indicatorGroupLength;
-                            segSize = indicatorsFlow.config.indicatorGroupSize;
-                        } else {
-                            segLength = indicatorsFlow.config.indicatorActiveLength;
-                            segSize = indicatorsFlow.config.indicatorActiveSize;
-                        }
-                    }
+                if ((isActiveWindow || attention) && indicatorsFlow.config.indicatorResize) {
+                    const enlarged = indicatorsFlow.enlargedSegment();
+                    segLength = enlarged.length;
+                    segSize = enlarged.size;
                 }
 
                 // 2. Hover styling. In a group only one segment grows: the focused window's,
@@ -207,13 +227,9 @@ Flow {
                             segLength = indicatorsFlow.config.indicatorHoverLength;
                             segSize = indicatorsFlow.config.indicatorHoverSize;
                         } else {
-                            if (indicatorsFlow.taskCount > 1 && indicatorsFlow.config.indicatorGroupSeparate) {
-                                segLength = indicatorsFlow.config.indicatorGroupLength;
-                                segSize = indicatorsFlow.config.indicatorGroupSize;
-                            } else {
-                                segLength = indicatorsFlow.config.indicatorActiveLength;
-                                segSize = indicatorsFlow.config.indicatorActiveSize;
-                            }
+                            const enlarged = indicatorsFlow.enlargedSegment();
+                            segLength = enlarged.length;
+                            segSize = enlarged.size;
                         }
                     }
                 }

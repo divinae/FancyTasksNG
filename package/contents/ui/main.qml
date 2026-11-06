@@ -70,7 +70,6 @@ PlasmoidItem {
         return Plasmoid.formFactor === PlasmaCore.Types.Vertical;
     }
     readonly property bool iconsOnly: tasks.config.iconOnly
-    property bool showBadges: tasks.config.showBadges
 
     property alias globalVolumeOverlay: globalVolumeOverlayLoader
     property Item dropIndicator: dropIndicatorRect
@@ -126,9 +125,10 @@ PlasmoidItem {
         // Ignored during the startup settling window: row churn while the
         // model is still populating isn't a real change, and saving it would
         // overwrite the snapshot restoreTaskOrder() is about to read.
-        function onRowsInserted() { if (!tasks._initialStartup) taskOrderSaveTimer.restart(); }
-        function onRowsRemoved() { if (!tasks._initialStartup) taskOrderSaveTimer.restart(); }
-        function onRowsMoved() { if (!tasks._initialStartup) taskOrderSaveTimer.restart(); }
+        enabled: !tasks._initialStartup
+        function onRowsInserted() { taskOrderSaveTimer.restart(); }
+        function onRowsRemoved() { taskOrderSaveTimer.restart(); }
+        function onRowsMoved() { taskOrderSaveTimer.restart(); }
     }
 
     // Stable across a plasmashell restart, unlike WinIdList (only meaningful
@@ -184,28 +184,18 @@ PlasmoidItem {
         }
     }
 
+    // Re-applies the model flags and re-runs the proxy filter after a filter setting changed
+    function refilter(): void {
+        modelUpdateTimer.restart();
+        tasks.filteredTasksModel.invalidateFilter();
+    }
+
     Connections {
         target: tasks.config
-        function onShowBadgesChanged() {
-            tasks.showBadges = tasks.config.showBadges;
-        }
-
-        function onShowOnlyCurrentDesktopChanged() {
-            modelUpdateTimer.restart();
-            tasks.filteredTasksModel.invalidateFilter();
-        }
-        function onShowOnlyCurrentScreenChanged() {
-            modelUpdateTimer.restart();
-            tasks.filteredTasksModel.invalidateFilter();
-        }
-        function onShowOnlyCurrentActivityChanged() {
-            modelUpdateTimer.restart();
-            tasks.filteredTasksModel.invalidateFilter();
-        }
-        function onReverseFiltersChanged() {
-            modelUpdateTimer.restart();
-            tasks.filteredTasksModel.invalidateFilter();
-        }
+        function onShowOnlyCurrentDesktopChanged() { tasks.refilter(); }
+        function onShowOnlyCurrentScreenChanged() { tasks.refilter(); }
+        function onShowOnlyCurrentActivityChanged() { tasks.refilter(); }
+        function onReverseFiltersChanged() { tasks.refilter(); }
 
         function onSortingStrategyChanged() {
             modelUpdateTimer.restart();
@@ -244,7 +234,6 @@ PlasmoidItem {
     }
 
     property Task toolTipOpenedByClick
-    property Task toolTipAreaItem
 
     property Task currentHoveredTask: null
     property Task instantHoveredTask: null
@@ -479,6 +468,12 @@ PlasmoidItem {
         id: internalFilteredTasksModel
         sourceModel: internalTasksModel
         filterRowCallback: (source_row, source_parent) => {
+            // Fast path: none of the filters below is active
+            if (tasks.config.minimizedFilter !== 1 && tasks.config.minimizedFilter !== 2
+                    && !(tasks.config.reverseFilters && (tasks.config.showOnlyCurrentScreen
+                        || tasks.config.showOnlyCurrentDesktop || tasks.config.showOnlyCurrentActivity)))
+                return true;
+
             const idx = internalTasksModel.index(source_row, 0, source_parent);
 
             // Minimized Filter
@@ -667,21 +662,26 @@ PlasmoidItem {
         if (JSON.stringify(map) !== JSON.stringify(tasks.webAppTracks))
             tasks.webAppTracks = map;
     }
-    function refreshWebAppTracks() {
+    // Launcher URLs the web app launchers were last requested for (see refreshWebAppTracks)
+    property string _webAppLauncherUrlsKey: ""
+    // Refreshes the web app track claims and the web app launcher list. Whether a launcher is
+    // a web app only depends on the set of open tasks, so with launchersIfTasksChanged (the
+    // periodic refresh while something plays) the launcher list is only re-requested when
+    // that set changed; row inserts and tooltips always refresh both.
+    function refreshWebAppTracks(launchersIfTasksChanged) {
         const urls = [];
         const model = tasks.tasksModel;
-        const walk = parent => {
-            for (let row = 0; row < model.rowCount(parent); ++row) {
-                const idx = model.index(row, 0, parent);
-                if (model.data(idx, TaskManager.AbstractTasksModel.IsGroupParent))
-                    walk(idx);
-                const url = String(model.data(idx, TaskManager.AbstractTasksModel.LauncherUrlWithoutIcon) || "");
-                if (url && urls.indexOf(url) === -1)
-                    urls.push(url);
-            }
-        };
-        walk(model.index(-1, -1));
+        TaskTools.someTask(model, idx => {
+            const url = String(model.data(idx, TaskManager.AbstractTasksModel.LauncherUrlWithoutIcon) || "");
+            if (url && urls.indexOf(url) === -1)
+                urls.push(url);
+            return false;
+        });
         DesktopActionsManager.webAppTracks(urls, map => tasks.setWebAppTracks(map));
+        const urlsKey = JSON.stringify(urls);
+        if (launchersIfTasksChanged === true && urlsKey === tasks._webAppLauncherUrlsKey)
+            return;
+        tasks._webAppLauncherUrlsKey = urlsKey;
         DesktopActionsManager.webAppLaunchers(urls, list => {
             if (JSON.stringify(list) !== JSON.stringify(tasks.webAppLaunchers))
                 tasks.webAppLaunchers = list;
@@ -710,9 +710,9 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         running: tasks.anyPlayerPlaying
-        onTriggered: tasks.refreshWebAppTracks()
+        onTriggered: tasks.refreshWebAppTracks(true)
         // Playback stopped: one last refresh drops claims of players that no longer play
-        onRunningChanged: if (!running) tasks.refreshWebAppTracks()
+        onRunningChanged: if (!running) tasks.refreshWebAppTracks(true)
     }
     onMprisPlayersChanged: if (tasks.mprisPlayers.length === 0) tasks.setWebAppTracks({})
 
@@ -783,22 +783,13 @@ PlasmoidItem {
         if (!String(track || "").trim())
             return false;
         const model = tasks.tasksModel;
-        const walk = parent => {
-            for (let row = 0; row < model.rowCount(parent); ++row) {
-                const idx = model.index(row, 0, parent);
-                if (model.data(idx, TaskManager.AbstractTasksModel.IsGroupParent)) {
-                    if (walk(idx))
-                        return true;
-                    continue;
-                }
-                const winIds = model.data(idx, TaskManager.AbstractTasksModel.WinIdList) || [];
-                if (winIds.length > 0 && winIds.indexOf(excludeWinId) === -1
-                        && TaskTools.titleShowsTrack(model.data(idx, Qt.DisplayRole), track))
-                    return true;
-            }
-            return false;
-        };
-        return walk(model.index(-1, -1));
+        return TaskTools.someTask(model, (idx, isGroupParent) => {
+            if (isGroupParent)
+                return false;
+            const winIds = model.data(idx, TaskManager.AbstractTasksModel.WinIdList) || [];
+            return winIds.length > 0 && winIds.indexOf(excludeWinId) === -1
+                && TaskTools.titleShowsTrack(model.data(idx, Qt.DisplayRole), track);
+        });
     }
 
     function handleItemRemoval(taskItem) {
@@ -1062,6 +1053,7 @@ PlasmoidItem {
 
             Connections {
                 target: rootHoverHandler
+                enabled: tasks.config.cursorGlow
                 function onPointChanged(): void {
                     if (!rootHoverHandler.hovered) {
                         return;
@@ -1184,7 +1176,10 @@ PlasmoidItem {
         interval: 10000
         repeat: true
         triggeredOnStart: true
+        // Only needed while something wants attention (attentionPeekWanted); triggeredOnStart
+        // fetches a fresh value as soon as that starts
         running: tasks.config.attentionPeek && !!Plasmoid.containment
+            && !!tasks.tasksModel && (tasks.tasksModel.anyTaskDemandsAttention || BadgeManager.anyUrgent)
         onTriggered: DesktopActionsManager.panelVisibility(Plasmoid.containment.id, value => tasks.panelVisibility = value)
     }
 
@@ -1328,7 +1323,6 @@ PlasmoidItem {
                 activities: taskModel ? taskModel.Activities : []
 
                 isPlayingAudio: taskModel ? (taskModel.IsPlayingAudio === true) : false
-                isMuted: taskModel ? (taskModel.IsMuted === true) : false
 
                 forceTextMode: tasks.toolTipOpenedByClick !== null && tasks.config.groupedTaskVisualization !== 1
             }

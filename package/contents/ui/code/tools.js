@@ -80,6 +80,24 @@ function cleanWindowTitle(display, appName) {
     return text + counter;
 }
 
+// App name guessed from a window title when the task has none: the word before a
+// " - v1.2" version suffix ("Doc - App - v1.2" -> "App"), else the text after the last
+// separator ("Doc — Kate" -> "Kate"). appName wins when set.
+function appNameFromTitle(appName, display) {
+    if (appName && appName.length > 0)
+        return appName;
+    const text = display ? String(display) : "";
+    if (!text)
+        return "";
+    const matchVersion = text.match(/\s+(?:—|-|–)\s+([^\s(—|-|–)]+)\s+(?:—|-|–)\s+v?\d+(?:\.\d+)+.*$/i);
+    if (matchVersion && matchVersion[1])
+        return matchVersion[1];
+    const matchLast = text.match(/.*(?:—|-|–)\s+(.*)$/);
+    if (matchLast && matchLast[1])
+        return matchLast[1];
+    return "";
+}
+
 // A window title "shows" a track if it starts with it, ignoring a "(3) " unread prefix, so
 // "Numb lyrics - Google Search" doesn't claim the track "Numb"
 function titleShowsTrack(windowTitle, track) {
@@ -134,6 +152,23 @@ function styledTitle(title, affixes, dimColor) {
     const middle = title.slice(prefix.length, title.length - suffix.length);
     const dim = part => part ? `<font color="${dimColor}">${_escapeHtml(part)}</font>` : "";
     return dim(prefix) + "<b>" + _escapeHtml(middle) + "</b>" + dim(suffix);
+}
+
+// Calls visit(index, isGroupParent) for every row of a tasks model, a group's children
+// before the group row itself. Stops and returns true as soon as visit returns true.
+function someTask(model, visit) {
+    const walk = parent => {
+        for (let row = 0; row < model.rowCount(parent); ++row) {
+            const idx = model.index(row, 0, parent);
+            const isGroupParent = !!model.data(idx, TaskManager.AbstractTasksModel.IsGroupParent);
+            if (isGroupParent && walk(idx))
+                return true;
+            if (visit(idx, isGroupParent))
+                return true;
+        }
+        return false;
+    };
+    return walk(model.index(-1, -1));
 }
 
 // Source-model index of the child of a group task that owns winId, or null.
@@ -267,32 +302,20 @@ function activateTask(index, model, modifiers, task, plasmoid, tasks, windowView
             }
         }
 
-        // Option 2: show tooltips for all child tasks
-        // ===========================================
-        else if (plasmoid.configuration.groupedTaskVisualization === 1) {
-            if (tasks.toolTipOpenedByClick) {
-                tasks.toolTipOpenedByClick.closeTooltip();
-            } else {
-                tasks.toolTipOpenedByClick = task;
-                tasks.currentHoveredTask = task;
-                task.toolTipOpen = true;
-                tasks.toolTipAreaItem = task;
-            }
-        }
-
         // Option 3: show Window View for all child tasks
         // ==================================================
-        // Make sure the Window View effect is  are actually enabled though;
-        // if not, fall through to the next option.
+        // Make sure the Window View effect is actually enabled though;
+        // if not, fall through to the tooltip options below.
         else if (plasmoid.configuration.groupedTaskVisualization === 2 && windowViewAvailable) {
             task.closeTooltip();
             tasks.activateWindowView(model.WinIdList);
         }
 
+        // Option 2: show tooltips for all child tasks
         // Option 4: show textual list (now using text tooltips instead of GroupDialog)
         // ========================================
-        // This is also the final fallback option if Window View
-        // is chosen but not actually available
+        // Option 4 is also the final fallback if Window View is chosen but not
+        // actually available. Both toggle the click-opened tooltip.
         else {
             if (tasks.toolTipOpenedByClick) {
                 tasks.toolTipOpenedByClick.closeTooltip();
@@ -300,7 +323,6 @@ function activateTask(index, model, modifiers, task, plasmoid, tasks, windowView
                 tasks.toolTipOpenedByClick = task;
                 tasks.currentHoveredTask = task;
                 task.toolTipOpen = true;
-                tasks.toolTipAreaItem = task;
             }
         }
     } else {

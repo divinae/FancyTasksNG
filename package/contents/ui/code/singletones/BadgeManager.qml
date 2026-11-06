@@ -98,6 +98,8 @@ Item {
                 counts[entry] = (counts[entry] || 0) + 1;
             }
         }
+        if (JSON.stringify(counts) === JSON.stringify(root.notificationCounts))
+            return;
         root.notificationCounts = counts;
         root.countVersion++;
     }
@@ -114,22 +116,45 @@ Item {
         }
     }
 
+    // appId without an "application://" prefix or ".desktop" suffix, and (unless
+    // keepApplicationsPrefix) without an "applications:" prefix
+    function _cleanId(appId, keepApplicationsPrefix) {
+        let cleanId = String(appId);
+        if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
+        if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
+        if (!keepApplicationsPrefix && cleanId.startsWith("applications:")) cleanId = cleanId.slice(13);
+        return cleanId;
+    }
+
+    // The keys an app's entries may be stored under: as given, cleaned, cleaned + ".desktop"
+    function _lookupIds(appId) {
+        const cleanId = _cleanId(appId, false);
+        return [String(appId), cleanId, cleanId + ".desktop"];
+    }
+
+    // First value stored for appId under any of its keys, else fallback
+    function _lookup(map, appId, fallback) {
+        for (const id of _lookupIds(appId)) {
+            if (map[id] !== undefined)
+                return map[id];
+        }
+        return fallback;
+    }
+
+    // First truthy value stored for appId under any of its keys, else undefined
+    function _lookupTruthy(map, appId) {
+        const ids = _lookupIds(appId);
+        return map[ids[0]] || map[ids[1]] || map[ids[2]];
+    }
+
     /**
      * Returns the unread count for a given AppId.
      * Tries multiple name variations for maximum compatibility.
      */
     function getUnreadCount(appId) {
         if (!appId) return 0;
-        
-        let strId = String(appId);
-        let cleanId = strId;
-        if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
-        if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
-        if (cleanId.startsWith("applications:")) cleanId = cleanId.slice(13);
-
         // LauncherEntry counts win over notification counts, like the stock task manager
-        return unityCounts[strId] || unityCounts[cleanId] || unityCounts[cleanId + ".desktop"]
-            || notificationCounts[cleanId] || 0;
+        return _lookupTruthy(unityCounts, appId) || notificationCounts[_cleanId(appId, false)] || 0;
     }
 
     /**
@@ -137,17 +162,7 @@ Item {
      */
     function getProgress(appId) {
         if (!appId) return -1.0;
-        
-        let strId = String(appId);
-        let cleanId = strId;
-        if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
-        if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
-        if (cleanId.startsWith("applications:")) cleanId = cleanId.slice(13);
-
-        if (unityProgress[strId] !== undefined) return unityProgress[strId];
-        if (unityProgress[cleanId] !== undefined) return unityProgress[cleanId];
-        if (unityProgress[cleanId + ".desktop"] !== undefined) return unityProgress[cleanId + ".desktop"];
-        return -1.0;
+        return _lookup(unityProgress, appId, -1.0);
     }
 
     /**
@@ -155,67 +170,50 @@ Item {
      */
     function getUrgent(appId) {
         if (!appId) return false;
+        return !!_lookupTruthy(unityUrgent, appId);
+    }
 
-        let strId = String(appId);
-        let cleanId = strId;
-        if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
-        if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
-        if (cleanId.startsWith("applications:")) cleanId = cleanId.slice(13);
-
-        return !!(unityUrgent[strId] || unityUrgent[cleanId] || unityUrgent[cleanId + ".desktop"]);
+    // Copy of map with value stored under keys, or null when map already holds exactly that.
+    // A new object is needed for QML to notify the property change.
+    function _withValue(map, keys, value) {
+        if (keys.every(key => map[key] === value))
+            return null;
+        const result = Object.assign({}, map);
+        for (const key of keys)
+            result[key] = value;
+        return result;
     }
 
     /**
      * Updates the count, progress and urgent flag for an application and triggers UI refresh.
      */
     function updateData(appId, count, progress, urgent) {
-        let strId = String(appId);
-        let cleanId = strId;
-        if (cleanId.startsWith("application://")) cleanId = cleanId.slice(14);
-        if (cleanId.endsWith(".desktop")) cleanId = cleanId.slice(0, -8);
-        
-        // We must replace the object to trigger QML property change notifications
-        let newCounts = {};
-        for (let key in unityCounts) {
-            newCounts[key] = unityCounts[key];
-        }
-        let newProgress = {};
-        for (let key in unityProgress) {
-            newProgress[key] = unityProgress[key];
-        }
-        let newUrgent = {};
-        for (let key in unityUrgent) {
-            newUrgent[key] = unityUrgent[key];
-        }
-        
-        newCounts[strId] = count;
-        newCounts[cleanId] = count;
-        newCounts[cleanId + ".desktop"] = count;
+        const strId = String(appId);
+        // Unlike the lookups, "applications:" is kept here
+        const cleanId = _cleanId(strId, true);
 
-        newProgress[strId] = progress;
-        newProgress[cleanId] = progress;
-        newProgress[cleanId + ".desktop"] = progress;
-
-        newUrgent[strId] = urgent;
-        newUrgent[cleanId] = urgent;
-        newUrgent[cleanId + ".desktop"] = urgent;
-
+        const keys = [strId, cleanId, cleanId + ".desktop"];
         // Handle dot-notation names (e.g. io.github.name)
         if (cleanId.includes(".")) {
-            let dots = cleanId.split(".");
-            let baseName = dots[dots.length - 1];
-            newCounts[baseName] = count;
-            newCounts[baseName + ".desktop"] = count;
-            newProgress[baseName] = progress;
-            newProgress[baseName + ".desktop"] = progress;
-            newUrgent[baseName] = urgent;
-            newUrgent[baseName + ".desktop"] = urgent;
+            const dots = cleanId.split(".");
+            const baseName = dots[dots.length - 1];
+            keys.push(baseName, baseName + ".desktop");
         }
 
-        root.unityCounts = newCounts;
-        root.unityProgress = newProgress;
-        root.unityUrgent = newUrgent;
-        root.anyUrgent = Object.keys(newUrgent).some(key => newUrgent[key]);
+        const newCounts = _withValue(unityCounts, keys, count);
+        const newProgress = _withValue(unityProgress, keys, progress);
+        const newUrgent = _withValue(unityUrgent, keys, urgent);
+        if (!newCounts && !newProgress && !newUrgent)
+            return;
+
+        if (newCounts)
+            root.unityCounts = newCounts;
+        if (newProgress)
+            root.unityProgress = newProgress;
+        if (newUrgent) {
+            root.unityUrgent = newUrgent;
+            root.anyUrgent = Object.keys(newUrgent).some(key => newUrgent[key]);
+        }
         root.countVersion++;
     }
 }

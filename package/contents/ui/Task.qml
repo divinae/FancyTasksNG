@@ -190,9 +190,7 @@ Item {
 
     property int childCount: (task.model && task.model.ChildCount) ? task.model.ChildCount : 0
     property int previousChildCount: 0
-    property alias labelText: label.text
     property var contextMenu: null
-    readonly property bool smartLauncherEnabled: !task.inPopup && task.model && !task.model.IsStartup
     // standalone notification counting (BadgeManager singleton)
     property int lastSeenCount: 0
     property bool hasUnseenNotifications: false
@@ -328,6 +326,9 @@ Item {
     HoverHandler {
         id: hoverHandler
         onPointChanged: {
+            // The fraction only feeds the parabolic zoom (TaskIconBox.zoomMultiplier)
+            if (!task.tasksRoot.iconsOnly || !task.config.taskHoverEffect || task.config.taskHoverEffectStyle !== 1)
+                return;
             if (hovered && task.tasksRoot.instantHoveredTask === task) {
                 let fraction;
                 if (task.tasksRoot.vertical) {
@@ -626,7 +627,6 @@ Item {
             return;
         task.tasksRoot.currentHoveredTask = task;
         task.toolTipOpen = true;
-        task.tasksRoot.toolTipAreaItem = task;
     }
 
     function closeTooltip(): void {
@@ -811,7 +811,12 @@ Item {
         // qmllint disable unqualified
         Kirigami.ImageColors {
             id: imageColors
-            source: task.model.decoration
+            // Only analyze the icon when something shows indicatorColor: dominant-colored
+            // indicators, dominant button colorization, or the cursor glow (main.qml)
+            readonly property bool needed: (task.config.indicatorsEnabled && task.config.indicatorDominantColor)
+                || (task.config.buttonColorize && task.config.buttonColorizeDominant)
+                || task.config.cursorGlow
+            source: needed ? task.model.decoration : ""
         }
         // qmllint enable unqualified
         property color dominantColor: imageColors.dominant
